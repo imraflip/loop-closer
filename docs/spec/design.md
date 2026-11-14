@@ -16,43 +16,47 @@ UI Kit components used: `Heading`, `Text`, `Stack`, `Inline`, `Box`, `Lozenge`, 
 
 - **Heading:** Loop Closer
 - **Subtext:** Tell customers their fix has shipped.
-- **Stat line (large):** "**10** customers waiting across **1** release"
+- **Stat tiles (three in a row):**
+  - **Customers waiting:** number, red if more than 0
+  - **Replies sent:** number
+  - **Releases scanned:** number
 - **Button (top right):** Scan a release, opens a modal with a `Select` of released versions and a Scan button.
-- **Table** (newest release first):
+- **Tabs:** Releases (default) | Still waiting (Screen 3).
+- **Release cards** (newest release first), one card per release:
+  - Title line: "Release 2.4 · 3 days ago · 3 bugs fixed"
+  - Progress bar: "2 of 10 customers told"
+  - Lozenge "8 waiting" (red)
+  - Button "Open", opens Screen 2
 
-| Column | Content |
-| --- | --- |
-| Release | Version name, link opens Screen 2 |
-| Released | "3 days ago" |
-| Bugs fixed | Number |
-| Waiting | `Badge`, red if more than 0 |
-| Sent | Number |
-| Action | Button "Open" |
-
-- **Tabs above the table:** Releases (default) | Still waiting (Screen 3).
-
-## Screen 2: Release detail
+## Screen 2: Release inbox (two columns)
 
 - **Back link:** ← All releases
 - **Heading:** Release 2.4
-- **Subtext:** Released 3 days ago · 3 bugs fixed · 10 customers matched
-- **Status line:** Lozenges "Waiting 8", "Sent 2", "Skipped 0", "Not related 0"
-- **Filter tabs:** Waiting (default) | Sent | Skipped and not related
-- **Table**, one row per request:
+- **Header:** "3 bugs fixed · 10 customers matched" and a progress bar "2 of 10 told"
+- **Tabs:** Waiting 8 (default) | Sent 2 | Skipped and not related
 
-| Column | Content |
-| --- | --- |
-| Customer | First name, then request key as a link (opens the request in a new tab) |
-| Their words | Request summary, cut at 80 characters |
-| Fixed bug | Bug key and summary |
-| Why | Lozenge "Linked" (green), or "Match 72%" (blue) plus up to 3 reason words in grey |
-| Draft | First 60 characters, plus a small label: Template, Rovo or Edited |
-| Actions | Buttons Send and Edit; a "More" menu with Improve with Rovo, Skip, Not related |
+**Left column (about 40%):** one row per customer.
 
-- **Send:** opens a confirm modal: "Send this reply to Ana? It will be visible to the customer on HELP-1." Buttons Cancel | Send reply. On success, a toast "Reply sent to Ana" and the row moves to the Sent tab.
-- **Edit:** modal with the full draft in a `TextArea`, a word count ("64 / 120 words"), and buttons Cancel | Save | Save and send.
+- First name, request key, request summary cut at 40 characters.
+- Lozenge "Linked" (green) or "Likely 29%" (blue).
+- The selected row is highlighted. On open, the first waiting customer is selected.
+
+**Right column (about 60%):** the selected customer.
+
+- Customer name and request key as a link (opens the request in a new tab).
+- Lozenge "Linked to LOOP-1" or "Likely match 29%", plus up to 3 shared words.
+- Two boxes: **They wrote** (the customer's request) and **Fixed in 2.4** (the fixed bug).
+- Label "Reply to customer" with a small label: Template, Rovo or Edited.
+- `TextArea` with the draft and a word count ("64 / 120 words").
+- Buttons: Improve with Rovo, Skip, Not related (secondary) and **Send and next** (the one primary button).
+
+**Behaviour:**
+
+- **Editing:** no separate Edit modal. The draft is edited in the `TextArea`, the label changes to Edited, and it saves when another customer is clicked or Send and next is pressed.
+- **Send and next:** opens a confirm modal: "Send this reply to Ana? It will be visible to the customer on HELP-1." Buttons Cancel | Send reply. On success, a toast "Reply sent to Ana", the customer moves to the Sent tab and the next waiting customer opens. When none are left: "Everyone in this release has been told."
 - **Improve with Rovo:** opens Rovo chat with the Loop Closer agent and the message "Improve the reply for HELP-5". **VERIFY** the bridge call that opens Rovo chat in Phase 3; if not possible, show the text to paste into chat.
-- **Skip:** status Skipped, no message sent. **Not related:** status Not related, hidden from Waiting, never suggested again for this release.
+- **Skip:** status Skipped, no message sent. **Not related:** status Not related, hidden from Waiting, never suggested again for this release. Both open the next waiting customer.
+- **VERIFY** in Phase 2 that the two columns work in UI Kit; if not, stack them (list on top, selected customer below).
 
 ## Screen 3: Still waiting (tab on Screen 1)
 
