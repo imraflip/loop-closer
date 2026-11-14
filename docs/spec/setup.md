@@ -306,12 +306,13 @@ Jira now says "space" where older pages say "project". It is the same thing. You
 **Part 2. The service space: Acme Help (key HELP)**
 
 - [x] Open `https://one-atlas-wwij.atlassian.net/jira/projects` again and click **Create space** at the top right.
-- [x] Open the **Service management** category (it may be under **Jira Service Management** in the apps list) and pick **Customer service management**. Do **not** pick IT service management: it does not allow "Raise a request" on behalf of a customer, and we need that.
-- [x] Click **Use template**. If it asks for the space type, choose **Team-managed**.
-- [x] Name: `Acme Help`.
-- [x] Click **Advanced** and set the key to exactly `HELP`.
-- [x] If it asks who can access the space, or what team will use it, keep the default or pick any option. Click **Create**.
-- [x] Check: the left sidebar of Acme Help opens (All work page). It may not show a Raise a request link; that is fine, we use the Create button in 7c.
+- [ ] If an Acme Help space made from another template already exists, delete it first and also delete it from the trash, so the key `HELP` is free again.
+- [ ] Open the **Service management** category (it may be under **Jira Service Management** in the apps list) and pick **General service management**. Do **not** pick Customer service management: it has no request types, so the reply API cannot comment on its requests (404 "Either you don't have access to this request type, or it doesn't exist"). Do **not** pick IT service management either: it has no "Raise a request" button.
+- [ ] Click **Use template**. If it asks for the space type, choose **Team-managed**.
+- [ ] Name: `Acme Help`.
+- [ ] Click **Advanced** and set the key to exactly `HELP`.
+- [ ] If it asks who can access the space, or what team will use it, keep the default or pick any option. Click **Create**.
+- [ ] Check: the left sidebar of Acme Help shows **Raise a request**. We use it in 7c.
 
 ### 7b. Three bugs in LOOP (type Bug, Fix version 2.4)
 
@@ -332,19 +333,19 @@ Create the bugs one at a time, in the order of the table below, so the keys beco
 
 ### 7c. Twelve requests in HELP
 
-On this demo site Acme Help has no customer portal (the Portals page and Customer experiences page only show sample portals). So we create the requests with the blue Create button. Example.com addresses are safe test addresses.
+Create the requests as an agent through the portal with **Raise a request**, so every request gets a request type. Do **not** use the blue **+ Create** button: work items made that way have no request type, and the reply API returns 404 for them. Example.com addresses are safe test addresses.
 
 Create the requests one at a time, in table order, so the keys become HELP-1 to HELP-12. Do HELP-1 completely first (steps 1 to 6), then repeat for the rest:
 
-- [x] 1\. In Jira, click the blue **+ Create** button at the top of the page. A window called "Create" opens.
-- [x] 2\. In the window, set **Space** to **Acme Help (HELP)**. Set **Work type** to **Problem**. Use the same Work type (Problem) for all 12 requests. Do not use Conversation.
-- [x] 3\. In **Summary** type the Summary from the table. Scroll down in the window to **Description** and paste the Description from the table, exactly as written.
-- [x] 4\. Keep scrolling down in the window and look for a field called **Reporter**, **Customer**, or **Raise this request on behalf of**. Click it, type the customer email from the table (for example `ana@example.com`), and choose that email. If it offers an option like "Create customer" or "Invite", choose that.
-- [x] 5\. If you cannot find any of those three fields: STOP. Do not click Create. Take a screenshot of the lower half of the window and tell Claude. (Claude will then give you the Customers page steps.)
-- [x] 6\. Click **Create**. A small message appears at the bottom with the key. Check: the first request must be **HELP-1**. If the key is different, stop and tell Claude. Do not continue.
-- [x] 7\. For HELP-2 to HELP-12 you can tick **Create another** at the bottom left of the window before you click Create. Space and Work type stay. Summary, Description and the customer email must be changed every time. Before clicking Create each time, look at the customer field and make sure it shows the NEW email, not the one from the request before.
-- [x] 8\. Emails to example.com go nowhere. That is fine.
-- [x] 9\. Check at the end: open `https://one-atlas-wwij.atlassian.net/issues/?jql=project%20%3D%20HELP%20ORDER%20BY%20key%20ASC` in Chrome. It should list 12 work items, HELP-1 to HELP-12, and each one should show the correct customer. (If that address does not work, open Acme Help in the left sidebar, then Queues.)
+- [ ] 1\. In the left sidebar of Acme Help, click **Raise a request**. The portal form opens.
+- [ ] 2\. Pick one request type and use the same request type for all 12 requests. Write down its name.
+- [ ] 3\. In **Raise this request on behalf of**, type the customer email from the table (for example `ana@example.com`) and choose that email. If it offers an option like "Create customer" or "Invite", choose that.
+- [ ] 4\. In **Summary** type the Summary from the table. In **Description** paste the Description from the table, exactly as written.
+- [ ] 5\. If you cannot find **Raise a request** or **Raise this request on behalf of**: STOP. Do not send the form. Take a screenshot and tell Claude.
+- [ ] 6\. Click **Send** (or **Create**). Check: the first request must be **HELP-1**, and it shows the request type from step 2. If the key is different, or there is no request type, stop and tell Claude. Do not continue.
+- [ ] 7\. For HELP-2 to HELP-12 open **Raise a request** again each time. Keep the same request type. Summary, Description and the customer email must be changed every time. Before sending, look at the on-behalf-of field and make sure it shows the NEW email, not the one from the request before.
+- [ ] 8\. Emails to example.com go nowhere. That is fine.
+- [ ] 9\. Check at the end: open `https://one-atlas-wwij.atlassian.net/issues/?jql=project%20%3D%20HELP%20ORDER%20BY%20key%20ASC` in Chrome. It should list 12 work items, HELP-1 to HELP-12, and each one should show the correct customer. (If that address does not work, open Acme Help in the left sidebar, then Queues.)
 
 | Key | Customer (email) | Summary | Description | Link |
 | --- | --- | --- | --- | --- |
@@ -365,11 +366,11 @@ Create the requests one at a time, in table order, so the keys become HELP-1 to 
 
 Only four requests get a link. They point from a bug to the request it relates to:
 
-- [x] Open **LOOP-1**. Click **Link work item**, choose **relates to**, type `HELP-1`, select it, click **Link**. Then link `HELP-4` the same way.
-- [x] Open **LOOP-2** and link it to `HELP-2` (relates to).
-- [x] Open **LOOP-3** and link it to `HELP-3` (relates to).
-- [x] Check: LOOP-1 shows two linked items (HELP-1, HELP-4), LOOP-2 shows HELP-2, LOOP-3 shows HELP-3. Link nothing else. HELP-5 to HELP-12 stay unlinked on purpose.
-- [x] Tell Claude when 7a to 7d all pass.
+- [ ] Open **LOOP-1**. Click **Link work item**, choose **relates to**, type `HELP-1`, select it, click **Link**. Then link `HELP-4` the same way.
+- [ ] Open **LOOP-2** and link it to `HELP-2` (relates to).
+- [ ] Open **LOOP-3** and link it to `HELP-3` (relates to).
+- [ ] Check: LOOP-1 shows two linked items (HELP-1, HELP-4), LOOP-2 shows HELP-2, LOOP-3 shows HELP-3. Link nothing else. HELP-5 to HELP-12 stay unlinked on purpose.
+- [ ] Tell Claude when 7a to 7d all pass.
 
 * [x] Expected result after Phase 1: releasing 2.4 creates **10 matches** (HELP-1 to HELP-10) and **no match** for HELP-11 or HELP-12.
 * [x] Nothing to do now. In Phase 1, Claude Code creates the file `test/fixtures.js` and puts these same texts in it, so the tests use identical data. The file does not exist yet, so you cannot find it.

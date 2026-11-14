@@ -322,7 +322,7 @@ For judges, so they can test in 2 minutes. Uses the projects chosen in Settings.
 6. Link the first request to the bug: `POST /rest/api/3/issueLink` with type "Relates".
 7. Return the keys and show: "Sample data created. Now release version LC-demo on your project's Releases page."
 
-The current user becomes the reporter of both requests. **VERIFY** in Phase 6 that issue type "Bug" exists in the judge's project; if not, use the first available issue type.
+Every request must have a request type: never create requests with `POST /rest/api/3/issue`, because the reply comment API (`POST /rest/servicedeskapi/request/{key}/comment`) returns 404 for work items without one. The current user becomes the reporter of both requests. **VERIFY** in Phase 6 that issue type "Bug" exists in the judge's project; if not, use the first available issue type.
 
 ## Screen code structure
 
