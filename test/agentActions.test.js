@@ -160,6 +160,34 @@ describe('getDraftContext', () => {
     expect((await getDraftContext({ requestKey: 'HELP-5' }, {})).data.release).toBe('2.3');
   });
 
+  test('refuses sent, skipped and not related, with first-name-only messages', async () => {
+    putMatch('200', '2.4', 'HELP-12', { customerName: 'Budi Santoso', status: 'skipped' });
+    kv.set('match:200:HELP-5', { ...kv.get('match:200:HELP-5'), status: 'sent' }); // name stored as an email
+    const cases = [
+      ['HELP-5', 'HELP-5 was already sent to Eko, so the reply cannot be improved.'],
+      ['HELP-3', 'HELP-3 was already sent to Chen, so the reply cannot be improved.'],
+      ['HELP-12', 'HELP-12 was skipped, so there is no draft to improve.'],
+      ['HELP-11', 'HELP-11 was marked not related, so there is no draft to improve.'],
+    ];
+    for (const [requestKey, message] of cases) {
+      const result = await getDraftContext({ requestKey }, {});
+      expect(result).toEqual({ ok: false, message });
+      noEmails(result);
+    }
+  });
+
+  test('a sent match with no customer name says "the customer"', async () => {
+    putMatch('200', '2.4', 'HELP-30', { customerName: 'there', status: 'sent' });
+    expect((await getDraftContext({ requestKey: 'HELP-30' }, {})).message).toBe('HELP-30 was already sent to the customer, so the reply cannot be improved.');
+  });
+
+  test('still works for waiting and drafted matches', async () => {
+    const waiting = await getDraftContext({ requestKey: 'HELP-5' }, {});
+    const drafted = await getDraftContext({ requestKey: 'HELP-10' }, {});
+    expect(waiting).toMatchObject({ ok: true, data: { requestKey: 'HELP-5', status: 'waiting', customer: 'Eko' } });
+    expect(drafted).toMatchObject({ ok: true, data: { requestKey: 'HELP-10', status: 'drafted', customer: 'Dewi' } });
+  });
+
   test('bad or unknown key', async () => {
     expect((await getDraftContext({ requestKey: 'not a key' }, {})).ok).toBe(false);
     expect((await getDraftContext({ requestKey: 'HELP-99' }, {})).message).toMatch(/not matched/);

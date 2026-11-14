@@ -135,7 +135,19 @@ async function findMatchForRequest(requestKey) {
 const notMatched = (requestKey) =>
   `${requestKey} is not matched to any scanned release. Scan the release in the Release Inbox first.`;
 
-// get-draft-context: what the agent needs to write one reply.
+// Why a sent, skipped or not related match cannot get a new draft; null when it can.
+// Told to the agent before it writes anything (saveReplyDraft checks again).
+export function closedMessage(match) {
+  const key = match.requestKey;
+  const raw = String(match.customerName ?? '').trim();
+  const name = raw && raw !== 'there' ? customerFirstName(raw) : 'the customer';
+  if (match.status === 'sent') return `${key} was already sent to ${name}, so the reply cannot be improved.`;
+  if (match.status === 'skipped') return `${key} was skipped, so there is no draft to improve.`;
+  if (match.status === 'not_related') return `${key} was marked not related, so there is no draft to improve.`;
+  return null;
+}
+
+// get-draft-context: what the agent needs to write one reply. Refuses sent, skipped and not related matches.
 export function getDraftContext(payload) {
   return safely('getDraftContext', async () => {
     const requestKey = inputText(payload, 'requestKey').toUpperCase();
@@ -149,6 +161,8 @@ export function getDraftContext(payload) {
     }
 
     const { match, release } = found;
+    const closed = closedMessage(match);
+    if (closed) return { ok: false, message: closed };
     const settings = await getSettings();
     return {
       ok: true,
