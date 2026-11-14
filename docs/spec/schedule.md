@@ -34,7 +34,7 @@ The build runs in 8 phases, in this order. A phase is finished only when its "Do
 - [ ] `src/lib/jira.js`: `searchJql()`, `getFixedBugs(versionId)`, `getOpenRequests(jsmKey)`, `adfToText()`
 - [ ] `src/lib/match.js`: `tokenize()`, `buildIdf()`, `scoreRequest()`, `matchRequests()` (algorithm in Architecture tab)
 - [ ] `src/lib/store.js`: key helpers and `saveMatch()`, `listMatches(versionId)`, `saveRelease()`
-- [ ] `src/lib/scan.js`: `scanRelease(versionId)` runs steps 1 to 6 of the scan
+- [ ] `src/lib/scan.js`: `findMatches(versionId)` runs steps 1 to 6 and saves nothing; `scanRelease(versionId)` also saves the matches as `waiting` and the release record with counts (step 8). Drafts (step 7) come in Phase 2.
 - [ ] `src/triggers/versionReleased.js`: calls `scanRelease` on `avi:jira:released:version`
 - [ ] `test/match.test.js`: the 8 matcher tests listed in the Architecture tab
 

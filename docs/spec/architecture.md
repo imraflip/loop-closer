@@ -182,22 +182,24 @@ Verified against Forge docs: the `trigger` event name and scope, `jira:projectPa
 
 | Key | Value |
 | --- | --- |
-| `settings` | \`{ jiraProjectKey, jsmProjectKey, tone: "friendly" |
+| `settings` | `{ jiraProjectKey, jsmProjectKey, tone, autoResolve, resolveStatusName, threshold, lookbackDays }`. tone is "friendly" or "formal" (default "friendly"); defaults `autoResolve: false`, `resolveStatusName: "Resolved"`, `threshold: 0.19`, `lookbackDays: 180`. The scan falls back to 0.19 and 180 if unset. |
 | `release:<versionId>` | `{ versionId, name, jiraProjectKey, releasedAt, bugKeys: [], scannedAt, counts: { waiting, drafted, sent, skipped, notRelated } }` |
-| `match:<versionId>:<requestKey>` | \`{ requestKey, bugKey, bugSummary, versionId, releaseName, linked, score, reasons: \[\], customerName, customerAccountId, requestSummary, requestCreated, status: "waiting" |
+| `match:<versionId>:<requestKey>` | `{ requestKey, bugKey, bugSummary, versionId, releaseName, linked, score, reasons: [], customerName, customerAccountId, requestSummary, requestCreated, status, draft, draftSource, sentAt }`. status is one of waiting, drafted, sent, skipped, not_related. draftSource is template, rovo or edited. `daysWaiting` is not stored; compute it when reading. Release `counts` use `notRelated` for the not_related status. |
 
 List a release's matches with `kvs.query().where('key', WhereConditions.beginsWith('match:<versionId>:'))`. Recalculate `counts` after every status change.
 
 ## The scan, step by step (`scanRelease(versionId, { asUser })`)
 
 1. Read `settings`. If no projects are set, stop and log "Loop Closer is not configured".
-2. `GET /rest/api/3/version/{versionId}` to get the name and project. If the project is not `jiraProjectKey`, stop.
-3. Fixed bugs: `POST /rest/api/3/search/jql` with `jql: project = <jiraKey> AND fixVersion = <versionId> AND issuetype = Bug`, `fields: [summary, description, components, issuelinks]`, `maxResults: 100`, follow `nextPageToken`.
+2. `GET /rest/api/3/version/{versionId}` to get the name and release date. There is no separate project check: the API returns only `projectId`, and step 3 already limits the search to `project = <jiraKey>`, so a version from another project finds 0 bugs.
+3. Fixed bugs: `POST /rest/api/3/search/jql` with `jql: project = <jiraKey> AND fixVersion = <versionId> AND issuetype = Bug`, `fields: [summary, description, components, issuelinks]`, `maxResults: 100`, follow `nextPageToken`. If it finds 0 bugs, stop and save nothing (no empty release records for other projects); a manual rescan returns "No fixed bugs found for this release".
 4. Linked requests: from each bug's `issuelinks`, keep `inwardIssue` or `outwardIssue` whose key starts with `<jsmKey>-`. These get `linked: true`, `score: 1.0`, `reasons: ["linked to <bugKey>"]`.
-5. Candidates: `POST /rest/api/3/search/jql` with `jql: project = <jsmKey> AND statusCategory != Done AND created >= -<lookbackDays>d`, `fields: [summary, description, reporter, created, components]`, up to 300 requests.
+5. Candidates: `POST /rest/api/3/search/jql` with `jql: project = <jsmKey> AND statusCategory != Done AND created >= -<lookbackDays>d`, `fields: [summary, description, reporter, created, components]`, up to 300 requests. Linked requests from step 4 that are not in these results get one extra search: `key in (<those keys>) AND statusCategory != Done`, same fields, no created limit. Linked requests that are Done are skipped. If a customer name is still missing, store `customerName: "there"` so the greeting reads "Hi there".
 6. Score each candidate that is not already linked (algorithm below). Each request is matched to its single best bug. Keep it if `score >= threshold` and it shares at least 2 tokens.
 7. For each kept request: build `draft = templateDraft(...)`, `status: "drafted"`, `draftSource: "template"`. Do not overwrite matches whose status is `sent`, `skipped` or `not_related` (rescans are safe).
-8. Save the release record with counts. Log `scan done: <n> bugs, <m> matches (<l> linked)`.
+8. Save each kept match: a new one as `status: "waiting"` with no draft; never overwrite `sent`, `skipped` or `not_related`. Then save the release record with counts and log `scan done: <n> bugs, <m> matches (<l> linked)`.
+
+`findMatches(versionId, { asUser })` runs steps 1 to 6 and saves nothing (used by `testMatching`). `scanRelease(versionId, { asUser })` runs `findMatches`, then step 8. Step 7 (drafts) is added in Phase 2.
 
 Descriptions arrive as Atlassian Document Format: `adfToText()` walks the nodes and joins every `text` value with spaces; `null` becomes `""`.
 
