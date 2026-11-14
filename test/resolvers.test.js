@@ -25,7 +25,7 @@ vi.mock('@forge/api', () => {
   return { default: { asUser: () => ({ requestJira }), asApp: () => ({ requestJira }) }, route: (s, ...v) => s.reduce((a, p, i) => a + p + (v[i] ?? ''), '') };
 });
 
-const { getReleases, listReleasedVersions, getSettings, releaseSummary } = await import('../src/resolvers/index.js');
+const { getReleases, listReleasedVersions, getSettings, releaseSummary, getMatches } = await import('../src/resolvers/index.js');
 
 const release = (versionId, releasedAt, counts) => ({
   versionId, name: `v${versionId}`, releasedAt, jiraProjectKey: 'LOOP', bugKeys: ['LOOP-1', 'LOOP-2'], counts,
@@ -82,5 +82,48 @@ describe('listReleasedVersions', () => {
         { id: '12', name: '2.3', releaseDate: '2026-09-01' },
       ],
     });
+  });
+});
+
+describe('getMatches', () => {
+  beforeEach(() => kv.clear());
+
+  const m = (requestKey, status, extra = {}) => ({
+    requestKey, status, versionId: '1', bugKey: 'LOOP-1', bugSummary: 'PDF export hangs', linked: false, score: 0.3,
+    reasons: ['pdf', 'export', 'report'], customerName: 'Ana Lima', customerAccountId: 'acc-1', requestSummary: 'PDF never finishes',
+    draft: 'Hi Ana', draftSource: 'template', sentAt: null, ...extra,
+  });
+
+  test('splits matches by tab, linked first then highest score, counts from matches', async () => {
+    kv.set('release:1', release('1', '2026-11-01', { waiting: 9 }));
+    kv.set('match:1:HELP-1', m('HELP-1', 'drafted', { score: 0.2 }));
+    kv.set('match:1:HELP-2', m('HELP-2', 'waiting', { score: 0.5 }));
+    kv.set('match:1:HELP-3', m('HELP-3', 'drafted', { linked: true, score: 1, reasons: ['linked to LOOP-1'] }));
+    kv.set('match:1:HELP-4', m('HELP-4', 'sent'));
+    kv.set('match:1:HELP-5', m('HELP-5', 'skipped'));
+    kv.set('match:1:HELP-6', m('HELP-6', 'not_related'));
+    kv.set('match:10:HELP-7', m('HELP-7', 'waiting')); // other release with a shared prefix
+    const res = await getMatches({ versionId: '1' });
+    expect(res.ok).toBe(true);
+    const { release: r, tabs } = res.data;
+    expect(tabs.waiting.map((x) => x.requestKey)).toEqual(['HELP-3', 'HELP-2', 'HELP-1']);
+    expect(tabs.sent.map((x) => x.requestKey)).toEqual(['HELP-4']);
+    expect(tabs.other.map((x) => x.requestKey)).toEqual(['HELP-5', 'HELP-6']);
+    expect(r).toMatchObject({ name: 'v1', waiting: 3, sent: 1, total: 6, bugCount: 2 });
+    expect(tabs.waiting[0]).not.toHaveProperty('customerAccountId');
+  });
+
+  test('an email display name is replaced by the first name', async () => {
+    kv.set('release:1', release('1', '2026-11-01', {}));
+    kv.set('match:1:HELP-1', m('HELP-1', 'drafted', { customerName: 'ana.lima@example.com' }));
+    const res = await getMatches({ versionId: '1' });
+    expect(res.data.tabs.waiting[0].customerName).toBe('Ana');
+    expect(JSON.stringify(res.data)).not.toContain('@');
+  });
+
+  test('bad or unknown version', async () => {
+    expect((await getMatches({})).ok).toBe(false);
+    expect((await getMatches({ versionId: 'x:y' })).ok).toBe(false);
+    expect(await getMatches({ versionId: '42' })).toEqual({ ok: false, message: 'This release has not been scanned yet' });
   });
 });

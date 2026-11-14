@@ -2,129 +2,27 @@ import React, { useEffect, useState } from 'react';
 import ForgeReconciler, {
   Box,
   Button,
-  EmptyState,
   Inline,
-  Lozenge,
-  ProgressBar,
   SectionMessage,
-  Spinner,
   Stack,
   Tab,
   TabList,
   TabPanel,
   Tabs,
   Text,
-  xcss,
 } from '@forge/react';
 import { invoke } from '@forge/bridge';
+import StatTile from './components/StatTile';
+import ReleaseList from './components/ReleaseList';
+import ReleaseDetail from './components/ReleaseDetail';
+import { panelStyle } from './components/styles';
 
 const NOT_SET_UP = 'Loop Closer is not set up yet. Ask a Jira admin to choose projects in Loop Closer settings.';
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-// Card look: token border + padding, full width of the page.
-const cardStyle = xcss({
-  width: '100%',
-  padding: 'space.300',
-  backgroundColor: 'elevation.surface.raised',
-  borderColor: 'color.border',
-  borderWidth: 'border.width',
-  borderStyle: 'solid',
-  borderRadius: 'border.radius',
-});
-
-// Tab panel content: fill the panel row (docs: display block + flexGrow make `grow` work in flex parents).
-const panelStyle = xcss({
-  display: 'block',
-  flexGrow: 1,
-  width: '100%',
-  paddingBlock: 'space.200',
-});
-
-// Stat tile: same look; width 0% + flexGrow 1 makes the three tiles share the row equally.
-const tileStyle = xcss({
-  display: 'block',
-  flexGrow: 1,
-  width: '0%',
-  padding: 'space.300',
-  backgroundColor: 'elevation.surface.sunken',
-  borderColor: 'color.border',
-  borderWidth: 'border.width',
-  borderStyle: 'solid',
-  borderRadius: 'border.radius',
-});
-
-const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
-
-// "today", "1 day ago", "3 days ago" from a yyyy-mm-dd release date.
-function daysAgo(date) {
-  const then = Date.parse(date);
-  if (Number.isNaN(then)) return null;
-  const days = Math.max(0, Math.floor((Date.now() - then) / DAY_MS));
-  return days === 0 ? 'today' : `${plural(days, 'day', 'days')} ago`;
-}
-
-const StatTile = ({ label, value, danger }) => (
-  <Box xcss={tileStyle}>
-    <Stack space="space.050">
-      <Text size="small" color="color.text.subtle">{label}</Text>
-      {/* Heading has no red colour, so the number is a large bold Text. */}
-      <Text size="large" weight="bold" color={danger ? 'color.text.danger' : 'color.text'}>{String(value)}</Text>
-    </Stack>
-  </Box>
-);
-
-const ReleaseCard = ({ release }) => {
-  const title = [`Release ${release.name}`, daysAgo(release.releasedAt), plural(release.bugCount, 'bug fixed', 'bugs fixed')]
-    .filter(Boolean)
-    .join(' · ');
-  const told = `${release.sent} of ${plural(release.total, 'customer', 'customers')} told`;
-  return (
-    <Box xcss={cardStyle}>
-      <Stack space="space.150" grow="fill">
-        <Inline spread="space-between" alignBlock="center" grow="fill">
-          <Text weight="semibold">{title}</Text>
-          {/* Opens Screen 2 (Release inbox) in a later Phase 2 task. */}
-          <Button isDisabled>Open</Button>
-        </Inline>
-        <ProgressBar value={release.total ? release.sent / release.total : 0} ariaLabel={told} />
-        <Inline space="space.100" alignBlock="center">
-          <Text size="small">{told}</Text>
-          <Lozenge appearance={release.waiting > 0 ? 'removed' : 'default'}>{`${release.waiting} waiting`}</Lozenge>
-        </Inline>
-      </Stack>
-    </Box>
-  );
-};
-
-const ReleaseList = ({ state }) => {
-  if (state.loading) {
-    return (
-      <Inline space="space.100" alignBlock="center">
-        <Spinner size="medium" label="Loading releases" />
-        <Text>Loading releases</Text>
-      </Inline>
-    );
-  }
-  if (state.error) {
-    return <SectionMessage appearance="error"><Text>{`Could not load releases: ${state.error}`}</Text></SectionMessage>;
-  }
-  if (state.releases.length === 0) {
-    return (
-      <EmptyState
-        header="No releases scanned yet."
-        description="Release a version in your Jira project, or click Scan a release."
-      />
-    );
-  }
-  return (
-    <Stack space="space.200" grow="fill">
-      {state.releases.map((r) => <ReleaseCard key={r.versionId} release={r} />)}
-    </Stack>
-  );
-};
 
 const App = () => {
   const [state, setState] = useState({ loading: true, configured: true, error: null, releases: [] });
+  const [openVersionId, setOpenVersionId] = useState(null); // set -> Screen 2 (Release inbox)
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -142,10 +40,19 @@ const App = () => {
         setState({ loading: false, configured: true, error: err.message, releases: [] });
       }
     })();
-  }, []);
+  }, [reloadKey]);
 
   if (!state.configured) {
     return <SectionMessage appearance="warning"><Text>{NOT_SET_UP}</Text></SectionMessage>;
+  }
+
+  if (openVersionId) {
+    // Back reloads the release list so counts stay fresh once sending works.
+    const back = () => {
+      setOpenVersionId(null);
+      setReloadKey((k) => k + 1);
+    };
+    return <ReleaseDetail versionId={openVersionId} onBack={back} />;
   }
 
   const waiting = state.releases.reduce((sum, r) => sum + r.waiting, 0);
@@ -175,7 +82,7 @@ const App = () => {
         </TabList>
         <TabPanel>
           <Box xcss={panelStyle}>
-            <ReleaseList state={state} />
+            <ReleaseList state={state} onOpen={setOpenVersionId} />
           </Box>
         </TabPanel>
         <TabPanel>

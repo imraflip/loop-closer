@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { templateDraft, wordCount, fillAgentName, MAX_WORDS, AGENT_PLACEHOLDER } from '../src/lib/drafts.js';
+import { templateDraft, wordCount, firstWord, fillAgentName, MAX_WORDS, AGENT_PLACEHOLDER } from '../src/lib/drafts.js';
 import { mergeMatch } from '../src/lib/scan.js';
 
 const match = { customerName: 'Eko Prasetyo', requestSummary: 'Report PDF never finishes', releaseName: '2.4' };
@@ -49,6 +49,31 @@ describe('templateDraft', () => {
 
   test('a normal summary is never cut', () => {
     expect(templateDraft(match, {})).not.toContain('…');
+  });
+});
+
+describe('firstWord (first name rule)', () => {
+  test('email display name: part before @, first piece on . _ or -, capitalized', () => {
+    expect(firstWord('ana@example.com')).toBe('Ana');
+    expect(firstWord('ana.lima@example.com')).toBe('Ana');
+    expect(firstWord('bob_smith@example.com')).toBe('Bob');
+    expect(firstWord('carla-ruiz@example.com')).toBe('Carla');
+    expect(firstWord('  dan@example.com ')).toBe('Dan');
+  });
+
+  test('normal names keep the first word; missing or empty gives "there"', () => {
+    expect(firstWord('Ana Lima')).toBe('Ana');
+    expect(firstWord('ana lima')).toBe('ana');
+    expect(firstWord('')).toBe('there');
+    expect(firstWord(undefined)).toBe('there');
+    expect(firstWord('@example.com')).toBe('there');
+    expect(firstWord('._@example.com')).toBe('there');
+  });
+
+  test('template greeting never shows the email', () => {
+    const draft = templateDraft({ customerName: 'ana.lima@example.com', requestSummary: 'PDF hangs', releaseName: '2.4' }, {});
+    expect(draft.startsWith('Hi Ana,')).toBe(true);
+    expect(draft).not.toContain('@');
   });
 });
 

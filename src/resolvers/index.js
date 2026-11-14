@@ -1,7 +1,8 @@
 // UI resolvers. All run as the current user and return { ok: true, data } or { ok: false, message }.
-import { getSettings as readSettings, listReleases } from '../lib/store.js';
+import { getSettings as readSettings, listReleases, getRelease, listMatches, countStatuses } from '../lib/store.js';
 import { getProjectVersions } from '../lib/jira.js';
 import { NOT_CONFIGURED } from '../lib/scan.js';
+import { firstWord } from '../lib/drafts.js';
 
 const fail = (err) => ({ ok: false, message: err?.message || String(err) });
 
@@ -61,8 +62,62 @@ export async function listReleasedVersions() {
   }
 }
 
+// Tab for each status. "waiting" tab = waiting + drafted; "other" = skipped + not_related.
+const TAB_OF = { waiting: 'waiting', drafted: 'waiting', sent: 'sent', skipped: 'other', not_related: 'other' };
+
+// Linked matches first, then the highest score; ties by request key.
+export function sortMatches(matches) {
+  return [...matches].sort(
+    (a, b) => Number(!!b.linked) - Number(!!a.linked) || (Number(b.score) || 0) - (Number(a.score) || 0) || String(a.requestKey).localeCompare(String(b.requestKey)),
+  );
+}
+
+// Stored match -> what the UI needs. No account id or email leaves the backend.
+export function matchView(m) {
+  return {
+    requestKey: m.requestKey,
+    bugKey: m.bugKey,
+    bugSummary: m.bugSummary || '',
+    linked: !!m.linked,
+    score: Number(m.score) || 0,
+    reasons: m.reasons || [],
+    customerName: String(m.customerName || '').includes('@') ? firstWord(m.customerName) : m.customerName || 'there',
+    requestSummary: m.requestSummary || '',
+    status: m.status,
+    draft: m.draft ?? null,
+    draftSource: m.draftSource ?? null,
+    sentAt: m.sentAt ?? null,
+  };
+}
+
+export function groupMatches(matches) {
+  const tabs = { waiting: [], sent: [], other: [] };
+  for (const m of sortMatches(matches)) {
+    const tab = TAB_OF[m.status];
+    if (tab) tabs[tab].push(matchView(m));
+  }
+  return tabs;
+}
+
+// One release with its matches split by tab. Counts come from the matches, not the stored release counts.
+export async function getMatches(payload) {
+  try {
+    const versionId = String(payload?.versionId ?? '').trim();
+    if (!/^\d+$/.test(versionId)) return { ok: false, message: 'Missing or bad versionId' };
+    const [release, matches] = await Promise.all([getRelease(versionId), listMatches(versionId)]);
+    if (!release) return { ok: false, message: 'This release has not been scanned yet' };
+    return {
+      ok: true,
+      data: { release: releaseSummary({ ...release, counts: countStatuses(matches) }), tabs: groupMatches(matches) },
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
 export function defineResolvers(resolver) {
   resolver.define('getSettings', getSettings);
   resolver.define('getReleases', getReleases);
   resolver.define('listReleasedVersions', listReleasedVersions);
+  resolver.define('getMatches', ({ payload }) => getMatches(payload));
 }

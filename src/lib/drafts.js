@@ -25,9 +25,16 @@ export function wordCount(text) {
   return words(text).length;
 }
 
-// First word of a display name; "there" when missing, so the greeting reads "Hi there".
+// First name from a display name; "there" when missing, so the greeting reads "Hi there".
+// Email-like names ("ana.lima@example.com"): part before @, first piece split on . _ or -, capitalized ("Ana").
+// Otherwise the first word. Never returns the email address.
 export function firstWord(name) {
-  return words(name)[0] || 'there';
+  const text = String(name ?? '').trim();
+  if (text.includes('@')) {
+    const piece = text.split('@')[0].split(/[._\-\s]+/).filter(Boolean)[0];
+    return piece ? piece[0].toUpperCase() + piece.slice(1) : 'there';
+  }
+  return words(text)[0] || 'there';
 }
 
 export function templateDraft(match, settings) {
