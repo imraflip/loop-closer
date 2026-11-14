@@ -205,14 +205,14 @@ Descriptions arrive as Atlassian Document Format: `adfToText()` walks the nodes 
 
 - **tokenize(text):** lowercase; replace anything not a letter or digit with a space; split; drop tokens shorter than 3 characters; drop every word in the exact STOPWORDS list below; strip one ending in this order: `ing`, `ed`, `es`, `s` if the rest is 4 or more letters.
 - **buildIdf(docs):** `idf(t) = ln(1 + N / df(t))` over all bug texts plus all candidate texts, where N is the number of documents.
-- **scoreRequest(request, bug):** request tokens = tokens of summary (counted twice) + description; bug tokens = tokens of bug summary (counted twice) + description. `shared = unique tokens in both`. `score = sum(idf(shared)) / sum(idf(unique bug tokens))`, then add `0.15` if they share a component, cap at `1.0`. `reasons` = the 3 shared tokens with the highest idf.
-- **Defaults:** threshold `0.35`, minimum 2 shared tokens. Tune only with the fixtures, never by eye on one example.
+- **scoreRequest(request, bug):** request tokens = tokens of summary (counted twice) + description; bug tokens = tokens of bug summary (counted twice) + description. `shared = unique tokens in both`. `score = sum(idf(shared)) / sqrt(sum(idf(unique bug tokens)) * sum(idf(unique request tokens)))`, with idf counted over the bugs plus the unlinked candidates, then add `0.15` if they share a component, cap at `1.0`. `reasons` = the 3 shared tokens with the highest idf.
+- **Defaults:** threshold `0.19` (midpoint of the fixture gap: lowest true match HELP-5 0.289, highest non-match HELP-12 0.100), minimum 2 shared tokens. Tune only with the fixtures, never by eye on one example.
 
 ## Matcher tests (`test/match.test.js`)
 
 1. A linked request gets score 1.0 and reason "linked to BUG-x".
-2. "PDF export keeps timing out on big reports" matches the PDF export bug with reasons including `pdf`, `export`, `timeout`.
-3. A decoy sharing only common words ("export to Excel is slow") scores below 0.35.
+2. HELP-5 ("Report PDF never finishes" + its description from the fixtures) matches LOOP-1 with reasons including `pdf` and `export`.
+3. A decoy sharing only common words ("export to Excel is slow") scores below the threshold.
 4. Stopwords and greetings alone never create a match.
 5. "exporting", "exports" and "exported" all become `export`.
 6. A request that fits two bugs is assigned only to the higher-scoring one.
@@ -388,5 +388,5 @@ export {
 
 - Exact UI Kit component names and the Rovo-open bridge call: checked with the Forge MCP server in Phases 2 and 3.
 - The Teamwork Graph query for the owner hint (B2): chosen in Phase 5 from the curated queries list, only if B2 is kept.
-- Matching threshold may move from 0.35 after the fixture tests in Phase 1; the tests decide, not guesses.
+- Matching threshold: set to 0.19 by the Phase 1 fixture tests (lowest true match 0.289, highest non-match 0.100). Re-check it on the sample data in Phase 6.
 - Sample data scope (decide in Phase 6): `POST /rest/api/3/version` needs `manage:jira-project`, which is not in the scope list. Either add that scope, or have `createSampleData` ask the user to create the LC-demo version by hand.

@@ -69,7 +69,7 @@ UI Kit components used: `Heading`, `Text`, `Stack`, `Inline`, `Box`, `Lozenge`, 
 | Reply tone | Select: Friendly, Formal | Friendly | Used by templates and by Rovo |
 | Resolve request after sending | Toggle | Off | Moves the request to the status below |
 | Resolve status name | Textfield | Resolved | Must match a transition in your service desk |
-| Match strictness | Select: Loose 0.25, Normal 0.35, Strict 0.5 | Normal | Higher means fewer, surer matches |
+| Match strictness | Select: Loose 0.12, Normal 0.19, Strict 0.30 | Normal | Higher means fewer, surer matches |
 | Look back | Select: 90, 180, 365 days | 180 | How old a request can be to match |
 
 - **Buttons:** Save settings | Test on a release (shows "This would match N requests" without saving).
