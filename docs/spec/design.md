@@ -5,12 +5,12 @@ Loop Closer has 4 screens built with Forge UI Kit (`@forge/react`), one Rovo age
 ## Design rules
 
 1. **The waiting number comes first** on every screen.
-2. **Every match shows why:** "Linked to LOOP-1" or "Match 72%: pdf, export, timeout".
+2. **Every match shows why:** "Linked to LOOP-1" or "Likely match 72%: pdf, export, timeout".
 3. **Nothing reaches a customer without a click,** and Send asks once to confirm.
 4. **Native look:** only UI Kit components, no custom CSS.
 5. **Every screen has a loading, empty and error state** (copy at the end of this tab).
 
-UI Kit components used: `Heading`, `Text`, `Stack`, `Inline`, `Box`, `Lozenge`, `Badge`, `DynamicTable`, `Button`, `ButtonGroup`, `Tabs`, `Modal`, `TextArea`, `Select`, `Toggle`, `Textfield`, `SectionMessage`, `Spinner`, `EmptyState`. **VERIFY** each name with the Forge MCP server in Phase 2.
+UI Kit components used: `Heading`, `Text`, `Stack`, `Inline`, `Box`, `Lozenge`, `Badge`, `ProgressBar`, `DynamicTable`, `Button`, `ButtonGroup`, `Tabs`, `Modal`, `TextArea`, `Select`, `Toggle`, `Textfield`, `SectionMessage`, `Spinner`, `EmptyState`. **VERIFY** each name with the Forge MCP server in Phase 2.
 
 ## Screen 1: Release list (Jira project page "Loop Closer")
 
@@ -133,7 +133,7 @@ Kind regards,
 | Screen | Loading | Empty | Error |
 | --- | --- | --- | --- |
 | Release list | Spinner + "Loading releases" | "No releases scanned yet. Release a version in your Jira project, or click Scan a release." | "Could not load releases: {message}" |
-| Release detail | Spinner + "Loading customers" | "No customers matched this release. Try Loose match strictness in Settings." | "Could not load this release: {message}" |
+| Release inbox | Spinner + "Loading customers" | "No customers matched this release. Try Loose match strictness in Settings." | "Could not load this release: {message}" |
 | Still waiting | Spinner | "Everyone has been told. Nice work." | "Could not load: {message}" |
 | Any screen, not configured | none | SectionMessage: "Loop Closer is not set up yet. Ask a Jira admin to choose projects in Loop Closer settings." | none |
 
