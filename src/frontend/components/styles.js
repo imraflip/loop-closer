@@ -36,5 +36,8 @@ export const selectedRowStyle = xcss({
   ':hover': { backgroundColor: 'color.background.selected.hovered' },
 });
 
+// Sent / skipped reply: light gray box, normal text, no field (so no caret and no blocked cursor).
+export const readOnlyDraftStyle = xcss({ display: 'block', width: '100%', padding: 'space.200', backgroundColor: 'color.background.neutral', ...border });
+
 // "They wrote" / "Fixed in" boxes.
 export const quoteStyle = xcss({ display: 'block', flexGrow: 1, width: '0%', padding: 'space.200', backgroundColor: 'elevation.surface.sunken', ...border });

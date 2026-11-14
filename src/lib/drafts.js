@@ -4,6 +4,7 @@
 
 export const MAX_WORDS = 120;
 export const AGENT_PLACEHOLDER = '{agentFirstName}';
+export const MAX_DRAFT_CHARS = 1500; // updateMatch and the reply box use the same limit
 const SUMMARY_CUT_WORDS = 60;
 
 const TEMPLATES = {
