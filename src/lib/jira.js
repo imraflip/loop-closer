@@ -1,4 +1,4 @@
-// Jira REST helpers (searchJql, getVersion, getFixedBugs, getOpenRequests) and adfToText().
+// Jira REST helpers (searchJql, getVersion, getProjectVersions, getFixedBugs, getOpenRequests) and adfToText().
 import api, { route } from '@forge/api';
 
 const PAGE_SIZE = 100;
@@ -50,6 +50,14 @@ export async function getVersion(versionId, { asUser = false } = {}) {
     headers: { Accept: 'application/json' },
   });
   return readJson(res, 'Get version');
+}
+
+// All versions of a project (not paginated).
+export async function getProjectVersions(projectKey, { asUser = false } = {}) {
+  const res = await jira(asUser).requestJira(route`/rest/api/3/project/${checkProjectKey(projectKey)}/versions`, {
+    headers: { Accept: 'application/json' },
+  });
+  return readJson(res, 'Get project versions');
 }
 
 export function getFixedBugs(versionId, jiraKey, { asUser = false } = {}) {

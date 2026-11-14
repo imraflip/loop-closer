@@ -11,6 +11,7 @@ function checkKey(key) {
 }
 
 export const SETTINGS_KEY = 'settings';
+export const RELEASE_PREFIX = 'release:';
 export const releaseKey = (versionId) => checkKey(`release:${versionId}`);
 export const matchPrefix = (versionId) => checkKey(`match:${versionId}:`);
 export const matchKey = (versionId, requestKey) => checkKey(`match:${versionId}:${requestKey}`);
@@ -59,6 +60,10 @@ export async function getRelease(versionId) {
 export async function saveRelease(release) {
   await kvs.set(releaseKey(release.versionId), release);
   return release;
+}
+
+export function listReleases() {
+  return queryAll(RELEASE_PREFIX);
 }
 
 export async function getMatch(versionId, requestKey) {
