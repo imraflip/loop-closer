@@ -3,6 +3,7 @@ import api, { route } from '@forge/api';
 
 const PAGE_SIZE = 100;
 const MAX_ISSUES = 300;
+const REQUEST_FIELDS = ['summary', 'description', 'reporter', 'created', 'components'];
 
 function jira(asUser) {
   return asUser ? api.asUser() : api.asApp();
@@ -58,7 +59,17 @@ export function getFixedBugs(versionId, jiraKey, { asUser = false } = {}) {
 
 export function getOpenRequests(jsmKey, lookbackDays, { asUser = false } = {}) {
   const jql = `project = ${checkProjectKey(jsmKey)} AND statusCategory != Done AND created >= -${checkId(lookbackDays)}d`;
-  return searchJql(jql, ['summary', 'description', 'reporter', 'created', 'components'], { asUser });
+  return searchJql(jql, REQUEST_FIELDS, { asUser });
+}
+
+// Linked requests missing from getOpenRequests: open ones only, no created limit.
+export function getOpenRequestsByKeys(keys, { asUser = false } = {}) {
+  if (!keys.length) return Promise.resolve([]);
+  for (const k of keys) {
+    if (!/^[A-Z][A-Z0-9_]*-\d+$/.test(String(k))) throw new Error(`Bad issue key: ${k}`);
+  }
+  const jql = `key in (${keys.join(', ')}) AND statusCategory != Done`;
+  return searchJql(jql, REQUEST_FIELDS, { asUser });
 }
 
 // Atlassian Document Format -> plain text: every `text` value, joined with spaces.
