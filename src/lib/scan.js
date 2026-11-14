@@ -64,7 +64,7 @@ export function buildMatches({ versionId, releaseName, bugIssues, requests, jsmK
   const unlinked = requests.filter((r) => !linked.has(r.key));
   const scored = matchRequests(bugIssues.map(toItem), unlinked.map(toItem), { threshold, minShared });
   for (const m of scored) {
-    matches.push(record(requestsByKey.get(m.requestKey), m.bugKey, { linked: false, score: m.score, reasons: m.reasons }));
+    matches.push(record(requestsByKey.get(m.requestKey), m.bugKey, { linked: false, score: m.score, reasons: m.reasons, reasonWords: m.reasonWords }));
   }
   return matches;
 }

@@ -4,7 +4,7 @@ import { router } from '@forge/bridge';
 import { MAX_DRAFT_CHARS, MAX_WORDS, firstWord as firstName, wordCount } from '../../lib/drafts';
 import MatchLozenge from './MatchLozenge';
 import { quoteStyle, readOnlyDraftStyle } from './styles';
-import { SOURCE_LABEL, canSend, changeText, draftBoxKey, draftParagraphs, sharedWords } from './format';
+import { SOURCE_LABEL, canSend, changeText, draftBoxKey, draftParagraphs, sentLabel, sharedWords } from './format';
 
 // Right column: the selected customer, both sides of the match, and the reply draft.
 // On the Waiting tab the draft is editable (saved by the parent) and the action buttons are live.
@@ -19,7 +19,7 @@ const MatchPanel = ({
   const words = sharedWords(match);
   const source = edited ? 'edited' : match.draftSource;
   const showUseTemplate = editable && (source === 'edited' || source === 'rovo' || !draft.trim());
-  const sentLabel = match.status === 'sent' && match.sentAt ? `Sent ${match.sentAt.slice(0, 10)}` : null;
+  const sent = match.status === 'sent' ? sentLabel(match.sentAt) : null;
   const draftId = `draft-${match.requestKey}`;
   return (
     <Stack space="space.200" grow="fill">
@@ -54,7 +54,7 @@ const MatchPanel = ({
         <Inline space="space.100" alignBlock="center">
           {editable ? <Label labelFor={draftId}>Reply to customer</Label> : <Text weight="semibold">Reply to customer</Text>}
           {source ? <Lozenge>{SOURCE_LABEL[source] || source}</Lozenge> : null}
-          {sentLabel ? <Lozenge appearance="success">{sentLabel}</Lozenge> : null}
+          {sent ? <Lozenge appearance="success">{sent}</Lozenge> : null}
           {showUseTemplate ? (
             <Button appearance="subtle" spacing="compact" onClick={onUseTemplate} isDisabled={busy}>Use template</Button>
           ) : null}

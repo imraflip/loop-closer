@@ -1,6 +1,6 @@
 // Matcher unit tests (the 8 cases in architecture.md).
 import { describe, test, expect } from 'vitest';
-import { tokenize, buildIdf, scoreRequest, matchRequests, DEFAULTS } from '../src/lib/match.js';
+import { tokenize, buildIdf, scoreRequest, matchRequests, originalWords, DEFAULTS } from '../src/lib/match.js';
 import { buildMatches, mergeMatch } from '../src/lib/scan.js';
 import { BUGS, REQUESTS, UNLINKED, byKey, BUG_ISSUES, REQUEST_ISSUES } from './fixtures.js';
 
@@ -126,5 +126,34 @@ describe('scan pipeline on demo data (no API calls)', () => {
   test('a missing customer name is stored as "there"', () => {
     const requests = REQUEST_ISSUES.map((r) => (r.key === 'HELP-5' ? { ...r, fields: { ...r.fields, reporter: null } } : r));
     expect(buildMatches(scanArgs(requests)).find((m) => m.requestKey === 'HELP-5').customerName).toBe('there');
+  });
+});
+
+describe('original words for display (reasonWords)', () => {
+  test('maps each stem to the first full word, customer text before bug text', () => {
+    const texts = ['Logging stops after settings change', 'dark mode logs', 'Logger settings reset'];
+    const [logg, setting, dark] = tokenize('logging settings dark'); // stems: logg, setting, dark
+    expect(originalWords([logg, setting, dark], texts)).toEqual({ [logg]: 'logging', [setting]: 'settings', [dark]: 'dark' });
+  });
+
+  test('stems not in any text are left out; empty texts do not crash', () => {
+    expect(originalWords(['pdf', 'zzz'], [null, undefined, 'PDF export'])).toEqual({ pdf: 'pdf' });
+  });
+
+  test('scoring is unchanged: reasons stay stems, reasonWords holds the full words', () => {
+    const bugs = [{ key: 'LOOP-9', summary: 'Logging settings lost in dark mode', description: '' }];
+    const requests = [{ key: 'HELP-9', summary: 'Dark mode loses my logging settings', description: null }];
+    const [m] = matchRequests(bugs, requests, { threshold: 0 });
+    expect(m.reasons).toContain('logg'); // still a stem
+    for (const s of m.reasons) expect(tokenize(m.reasonWords[s])).toEqual([s]);
+    expect(m.reasonWords.logg).toBe('logging');
+  });
+
+  test('demo data: every unlinked match has a full word for each reason', () => {
+    const unlinked = buildMatches(scanArgs()).filter((m) => !m.linked);
+    expect(unlinked.length).toBeGreaterThan(0);
+    for (const m of unlinked) {
+      for (const s of m.reasons) expect(tokenize(m.reasonWords[s])).toEqual([s]);
+    }
   });
 });

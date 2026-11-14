@@ -20,7 +20,20 @@ export function cut(text, max) {
 export const percent = (score) => `${Math.round((Number(score) || 0) * 100)}%`;
 
 // Up to 3 shared words for an unlinked match (linked matches only carry "linked to KEY").
-export const sharedWords = (match) => (match.linked ? [] : (match.reasons || []).slice(0, 3));
+// Reasons are word stems ("logg"); reasonWords maps each to a full word ("logging").
+// Matches saved before reasonWords existed show the stem.
+export const sharedWords = (match) =>
+  match.linked ? [] : (match.reasons || []).slice(0, 3).map((s) => match.reasonWords?.[s] || s);
+
+const pad2 = (n) => String(n).padStart(2, '0');
+const localDate = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+// "Sent today" or "Sent 2026-11-14", in the viewer's time zone (sentAt is stored as UTC ISO). null if unknown.
+export function sentLabel(sentAt, now = new Date()) {
+  const sent = new Date(sentAt ?? '');
+  if (!sentAt || Number.isNaN(sent.getTime())) return null;
+  return localDate(sent) === localDate(now) ? 'Sent today' : `Sent ${localDate(sent)}`;
+}
 
 // Text from a UI Kit onChange argument: an event ({ target: { value } }) or, for some components, the value itself.
 // Returns null when there is no text, so callers never store undefined.

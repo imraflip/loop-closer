@@ -22,14 +22,32 @@ function stem(token) {
   return token;
 }
 
-export function tokenize(text) {
+// Same steps as tokenize(), but keeps the word before stemming: [{ word, stem }] in text order.
+export function tokenWords(text) {
   if (!text) return [];
   return String(text)
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, ' ')
     .split(' ')
     .filter((t) => t.length >= 3 && !STOPWORDS.has(t))
-    .map(stem);
+    .map((word) => ({ word, stem: stem(word) }));
+}
+
+export function tokenize(text) {
+  return tokenWords(text).map((t) => t.stem);
+}
+
+// For display only (scoring uses stems): stem -> the first full word with that stem,
+// looking through `texts` in order. Stems not found in any text are left out.
+export function originalWords(stems, texts) {
+  const wanted = new Set(stems);
+  const words = {};
+  for (const text of texts) {
+    for (const { word, stem: s } of tokenWords(text)) {
+      if (wanted.has(s) && !(s in words)) words[s] = word;
+    }
+  }
+  return words;
 }
 
 // Summary counted twice + description.
@@ -98,6 +116,8 @@ export function matchRequests(bugs, requests, { threshold = DEFAULTS.threshold, 
         bugKey: best.bug.key,
         score: best.score,
         reasons: best.reasons,
+        // Customer's words first, then the bug's: "logg" -> "logging".
+        reasonWords: originalWords(best.reasons, [request.summary, request.description, best.bug.summary, best.bug.description]),
         linked: false,
       });
     }

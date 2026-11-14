@@ -107,6 +107,7 @@ export function matchView(m, agentDisplayName = '') {
     linked: !!m.linked,
     score: Number(m.score) || 0,
     reasons: m.reasons || [],
+    reasonWords: m.reasonWords || {},
     customerName: String(m.customerName || '').includes('@') ? firstWord(m.customerName) : m.customerName || 'there',
     requestSummary: m.requestSummary || '',
     status: m.status,
