@@ -89,6 +89,7 @@ The build runs in 8 phases, in this order. A phase is finished only when its "Do
 - [ ] `src/frontend/inbox.jsx`: second tab "Still waiting"
 - [ ] `src/frontend/admin.jsx`: settings form (fields in Design tab)
 - [ ] Resolvers: `getSettings`, `saveSettings`, `getStillWaiting`
+- [ ] Remove the env fallback in the settings reader (`getSettings()` in `src/lib/store.js`, marked "TEMP Phase 1") and its test in `test/store.test.js`
 
 **Done when:** changing the service desk project in Settings changes what the next scan finds, and Still Waiting lists unsent matches oldest first.
 

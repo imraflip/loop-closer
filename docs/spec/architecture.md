@@ -277,7 +277,7 @@ Rules:
 
 - Every resolver returns `{ ok: true, data }` or `{ ok: false, message }`; the UI shows `message` in a SectionMessage.
 - A failed send leaves the match as `drafted` and shows "Not sent: \<reason>". Never mark `sent` before the API returns 201.
-- If the trigger times out on large projects, move the scan to an async event queue. **VERIFY** the Forge function time limit when Phase 1 is done.
+- Function time limit (checked at the end of Phase 1): 25 seconds for normal function invocations. The Forge docs do not name product triggers explicitly, so this is not confirmed for triggers by name. The demo scan is small (about 4 Jira calls and 10 saves). For big projects the plan is to move the scan to an async event queue (consumer functions run up to 900 seconds).
 
 ## STOPWORDS (exact list for `src/lib/match.js`)
 

@@ -31,8 +31,25 @@ async function queryAll(prefix) {
   return values;
 }
 
+export const SETTINGS_DEFAULTS = {
+  tone: 'friendly',
+  autoResolve: false,
+  resolveStatusName: 'Resolved',
+  threshold: 0.19,
+  lookbackDays: 180,
+};
+
 export async function getSettings() {
-  return (await kvs.get(SETTINGS_KEY)) ?? null;
+  const stored = await kvs.get(SETTINGS_KEY);
+  if (stored) return stored;
+
+  // TEMP Phase 1: no Settings page yet, so fall back to Forge environment variables
+  // (forge variables set LC_JIRA_PROJECT_KEY / LC_JSM_PROJECT_KEY). Remove in Phase 4.
+  const jiraProjectKey = process.env.LC_JIRA_PROJECT_KEY;
+  const jsmProjectKey = process.env.LC_JSM_PROJECT_KEY;
+  if (jiraProjectKey && jsmProjectKey) return { jiraProjectKey, jsmProjectKey, ...SETTINGS_DEFAULTS };
+
+  return null;
 }
 
 export async function getRelease(versionId) {
