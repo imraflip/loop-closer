@@ -22,4 +22,30 @@ export const percent = (score) => `${Math.round((Number(score) || 0) * 100)}%`;
 // Up to 3 shared words for an unlinked match (linked matches only carry "linked to KEY").
 export const sharedWords = (match) => (match.linked ? [] : (match.reasons || []).slice(0, 3));
 
+// Text from a UI Kit onChange argument: an event ({ target: { value } }) or, for some components, the value itself.
+// Returns null when there is no text, so callers never store undefined.
+export function changeText(arg) {
+  if (typeof arg === 'string') return arg;
+  const value = arg?.target?.value;
+  return typeof value === 'string' ? value : null;
+}
+
+// Key for the reply TextArea: a new key (fresh mount) only when another match opens or the saved draft changes,
+// never on a keystroke. The TextArea is uncontrolled (defaultValue), so typing is never overwritten.
+export const draftBoxKey = (match) => `${match.requestKey}|${match.status}|${match.draft || ''}`;
+
+// Send and next is allowed only with real text (not empty, not only spaces or line breaks) and when idle.
+export const canSend = (draft, busy) => !busy && typeof draft === 'string' && draft.trim().length > 0;
+
+// Read-only reply text -> paragraphs of lines, so line breaks show without a TextArea.
+// Blank lines separate paragraphs; single line breaks stay inside a paragraph.
+export function draftParagraphs(text) {
+  return String(text ?? '')
+    .replace(/\r\n?/g, '\n')
+    .split(/\n[ \t]*\n+/)
+    .map((p) => p.split('\n').map((line) => line.trimEnd()))
+    .map((lines) => lines.filter((line, i) => line || (i > 0 && i < lines.length - 1)))
+    .filter((lines) => lines.some(Boolean));
+}
+
 export const SOURCE_LABEL = { template: 'Template', rovo: 'Rovo', edited: 'Edited' };

@@ -1,16 +1,21 @@
 import React from 'react';
 import { Box, Button, Heading, Inline, Label, Lozenge, Stack, Text, TextArea } from '@forge/react';
 import { router } from '@forge/bridge';
-import { MAX_WORDS, firstWord as firstName, wordCount } from '../../lib/drafts';
+import { MAX_DRAFT_CHARS, MAX_WORDS, firstWord as firstName, wordCount } from '../../lib/drafts';
 import MatchLozenge from './MatchLozenge';
-import { quoteStyle } from './styles';
-import { SOURCE_LABEL, sharedWords } from './format';
+import { quoteStyle, readOnlyDraftStyle } from './styles';
+import { SOURCE_LABEL, canSend, changeText, draftBoxKey, draftParagraphs, sharedWords } from './format';
 
 // Right column: the selected customer, both sides of the match, and the reply draft.
-// Buttons are placeholders until the updateMatch and sendReply tasks.
-const MatchPanel = ({ match, releaseName, showActions }) => {
+// On the Waiting tab the draft is editable (saved by the parent) and the action buttons are live.
+// `draft` is the text on screen (an unsaved edit or the stored draft); `edited` is true when it differs.
+// The TextArea is uncontrolled: `defaultValue` sets the text once per mount and the box owns it while typing.
+// A controlled `value` goes through the async UI Kit bridge on every keystroke, and the host field
+// resets to the last value it was given, so typed and pasted text never sticks.
+const MatchPanel = ({ match, releaseName, editable, draft, edited, busy, onDraftChange, onSkip, onNotRelated, onSend }) => {
   const words = sharedWords(match);
-  const draft = match.draft || '';
+  const source = edited ? 'edited' : match.draftSource;
+  const sentLabel = match.status === 'sent' && match.sentAt ? `Sent ${match.sentAt.slice(0, 10)}` : null;
   const draftId = `draft-${match.requestKey}`;
   return (
     <Stack space="space.200" grow="fill">
@@ -43,22 +48,47 @@ const MatchPanel = ({ match, releaseName, showActions }) => {
 
       <Stack space="space.075" grow="fill">
         <Inline space="space.100" alignBlock="center">
-          <Label labelFor={draftId}>Reply to customer</Label>
-          {match.draftSource ? <Lozenge>{SOURCE_LABEL[match.draftSource] || match.draftSource}</Lozenge> : null}
+          {editable ? <Label labelFor={draftId}>Reply to customer</Label> : <Text weight="semibold">Reply to customer</Text>}
+          {source ? <Lozenge>{SOURCE_LABEL[source] || source}</Lozenge> : null}
+          {sentLabel ? <Lozenge appearance="success">{sentLabel}</Lozenge> : null}
         </Inline>
-        {/* Read-only until updateMatch saves edits. */}
-        <TextArea id={draftId} value={draft} isReadOnly minimumRows={8} resize="vertical" />
+        {editable ? (
+          <TextArea
+            key={draftBoxKey(match)}
+            id={draftId}
+            defaultValue={draft}
+            maxLength={MAX_DRAFT_CHARS}
+            minimumRows={8}
+            resize="vertical"
+            onChange={(e) => {
+              const text = changeText(e);
+              if (text !== null) onDraftChange(text);
+            }}
+          />
+        ) : (
+          // Sent / skipped / not related: plain text, not a field (isReadOnly still shows a caret, isDisabled fades it).
+          <Box xcss={readOnlyDraftStyle}>
+            <Stack space="space.150">
+              {draftParagraphs(draft).map((lines, p) => (
+                <Stack key={p} space="space.0">
+                  {lines.map((line, i) => <Text key={i}>{line || ' '}</Text>)}
+                </Stack>
+              ))}
+            </Stack>
+          </Box>
+        )}
         <Text size="small" color={wordCount(draft) > MAX_WORDS ? 'color.text.danger' : 'color.text.subtle'}>
           {`${wordCount(draft)} / ${MAX_WORDS} words`}
         </Text>
       </Stack>
 
-      {showActions ? (
+      {editable ? (
         <Inline space="space.100" alignBlock="center" shouldWrap>
+          {/* Phase 3: opens Rovo chat. */}
           <Button isDisabled>Improve with Rovo</Button>
-          <Button isDisabled>Skip</Button>
-          <Button isDisabled>Not related</Button>
-          <Button appearance="primary" isDisabled>Send and next</Button>
+          <Button onClick={onSkip} isDisabled={busy}>Skip</Button>
+          <Button onClick={onNotRelated} isDisabled={busy}>Not related</Button>
+          <Button appearance="primary" onClick={onSend} isDisabled={!canSend(draft, busy)}>Send and next</Button>
         </Inline>
       ) : null}
     </Stack>

@@ -92,3 +92,10 @@ export function adfToText(adf) {
   walk(adf);
   return parts.join(' ');
 }
+
+// Display name of the logged-in user (GET /rest/api/3/myself, read:jira-user). Used to sign replies.
+export async function getMyDisplayName() {
+  const res = await api.asUser().requestJira(route`/rest/api/3/myself`, { headers: { Accept: 'application/json' } });
+  const me = await readJson(res, 'Get current user');
+  return me?.displayName || '';
+}
