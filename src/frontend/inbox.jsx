@@ -32,6 +32,14 @@ const cardStyle = xcss({
   borderRadius: 'border.radius',
 });
 
+// Tab panel content: fill the panel row (docs: display block + flexGrow make `grow` work in flex parents).
+const panelStyle = xcss({
+  display: 'block',
+  flexGrow: 1,
+  width: '100%',
+  paddingBlock: 'space.200',
+});
+
 // Stat tile: same look; width 0% + flexGrow 1 makes the three tiles share the row equally.
 const tileStyle = xcss({
   display: 'block',
@@ -72,8 +80,8 @@ const ReleaseCard = ({ release }) => {
   const told = `${release.sent} of ${plural(release.total, 'customer', 'customers')} told`;
   return (
     <Box xcss={cardStyle}>
-      <Stack space="space.100">
-        <Inline spread="space-between" alignBlock="center">
+      <Stack space="space.150" grow="fill">
+        <Inline spread="space-between" alignBlock="center" grow="fill">
           <Text weight="semibold">{title}</Text>
           {/* Opens Screen 2 (Release inbox) in a later Phase 2 task. */}
           <Button isDisabled>Open</Button>
@@ -166,12 +174,12 @@ const App = () => {
           <Tab>{ready ? `Still waiting (${waiting})` : 'Still waiting'}</Tab>
         </TabList>
         <TabPanel>
-          <Box paddingBlock="space.200">
+          <Box xcss={panelStyle}>
             <ReleaseList state={state} />
           </Box>
         </TabPanel>
         <TabPanel>
-          <Box paddingBlock="space.200">
+          <Box xcss={panelStyle}>
             {/* Placeholder: Screen 3 is built in Phase 4. */}
             <Text>Still waiting is coming soon.</Text>
           </Box>
