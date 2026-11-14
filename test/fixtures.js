@@ -41,3 +41,27 @@ export const REQUESTS = [
 export const UNLINKED = REQUESTS.filter((r) => !r.linkedTo);
 
 export const byKey = (key) => REQUESTS.find((r) => r.key === key);
+
+// The same data shaped like Jira search results (ADF descriptions, issuelinks on the bugs).
+const adf = (text) => ({ type: 'doc', version: 1, content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] });
+
+export const BUG_ISSUES = BUGS.map((b) => ({
+  key: b.key,
+  fields: {
+    summary: b.summary,
+    description: adf(b.description),
+    components: b.components.map((name) => ({ name })),
+    issuelinks: REQUESTS.filter((r) => r.linkedTo === b.key).map((r) => ({ outwardIssue: { key: r.key, fields: { summary: r.summary } } })),
+  },
+}));
+
+export const REQUEST_ISSUES = REQUESTS.map((r, i) => ({
+  key: r.key,
+  fields: {
+    summary: r.summary,
+    description: adf(r.description),
+    reporter: { displayName: r.customer, accountId: `acc-${i + 1}` },
+    created: '2026-11-01T10:00:00.000+0000',
+    components: [],
+  },
+}));

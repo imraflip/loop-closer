@@ -1,7 +1,12 @@
 // Matcher unit tests (the 8 cases in architecture.md).
 import { describe, test, expect } from 'vitest';
 import { tokenize, buildIdf, scoreRequest, matchRequests, DEFAULTS } from '../src/lib/match.js';
-import { BUGS, REQUESTS, UNLINKED, byKey } from './fixtures.js';
+import { buildMatches, mergeMatch } from '../src/lib/scan.js';
+import { BUGS, REQUESTS, UNLINKED, byKey, BUG_ISSUES, REQUEST_ISSUES } from './fixtures.js';
+
+const scanArgs = (requests = REQUEST_ISSUES) => ({
+  versionId: '10001', releaseName: '2.4', bugIssues: BUG_ISSUES, requests, jsmKey: 'HELP', ...DEFAULTS,
+});
 
 const docTokens = (item) => {
   const s = tokenize(item.summary);
@@ -11,7 +16,10 @@ const idfFor = (requests) => buildIdf([...BUGS, ...requests].map(docTokens));
 
 describe('matcher', () => {
   // 1 and 8 test scan.js / store.js behaviour (linked requests, rescans), which do not exist yet.
-  test.todo('1. a linked request gets score 1.0 and reason "linked to BUG-x"');
+  test('1. a linked request gets score 1.0 and reason "linked to BUG-x"', () => {
+    const m = buildMatches(scanArgs()).find((x) => x.requestKey === 'HELP-1');
+    expect(m).toMatchObject({ bugKey: 'LOOP-1', linked: true, score: 1, reasons: ['linked to LOOP-1'] });
+  });
 
   test('2. HELP-5 "Report PDF never finishes" matches LOOP-1 with reasons pdf and export', () => {
     const matches = matchRequests(BUGS, UNLINKED);
@@ -71,7 +79,14 @@ describe('matcher', () => {
     }
   });
 
-  test.todo('8. running the scan twice keeps a sent match as sent');
+  test('8. running the scan twice keeps a sent match as sent', () => {
+    const fresh = buildMatches(scanArgs()).find((x) => x.requestKey === 'HELP-5');
+    const first = mergeMatch(undefined, fresh);
+    expect(first.status).toBe('waiting');
+    const sent = { ...first, status: 'sent', sentAt: '2026-11-14T10:00:00.000Z' };
+    expect(mergeMatch(sent, fresh)).toBeNull();
+    for (const status of ['skipped', 'not_related']) expect(mergeMatch({ ...first, status }, fresh)).toBeNull();
+  });
 });
 
 describe('demo data (Phase 1 done check)', () => {
@@ -90,5 +105,26 @@ describe('demo data (Phase 1 done check)', () => {
   test('fixtures have 12 requests, 4 linked', () => {
     expect(REQUESTS).toHaveLength(12);
     expect(REQUESTS.filter((r) => r.linkedTo)).toHaveLength(4);
+  });
+});
+
+describe('scan pipeline on demo data (no API calls)', () => {
+  test('10 matches: 4 linked, 6 unlinked, no decoys', () => {
+    const matches = buildMatches(scanArgs());
+    expect(matches).toHaveLength(10);
+    expect(matches.filter((m) => m.linked).map((m) => m.requestKey).sort()).toEqual(['HELP-1', 'HELP-2', 'HELP-3', 'HELP-4']);
+    expect(matches.map((m) => m.requestKey)).not.toContain('HELP-11');
+    expect(matches.map((m) => m.requestKey)).not.toContain('HELP-12');
+    expect(matches.every((m) => !('email' in m) && !('emailAddress' in m))).toBe(true);
+  });
+
+  test('a linked request that is Done (not in the results) is skipped', () => {
+    const matches = buildMatches(scanArgs(REQUEST_ISSUES.filter((r) => r.key !== 'HELP-2')));
+    expect(matches.map((m) => m.requestKey)).not.toContain('HELP-2');
+  });
+
+  test('a missing customer name is stored as "there"', () => {
+    const requests = REQUEST_ISSUES.map((r) => (r.key === 'HELP-5' ? { ...r, fields: { ...r.fields, reporter: null } } : r));
+    expect(buildMatches(scanArgs(requests)).find((m) => m.requestKey === 'HELP-5').customerName).toBe('there');
   });
 });
