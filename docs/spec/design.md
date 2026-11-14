@@ -21,7 +21,7 @@ UI Kit components used: `Heading`, `Text`, `Stack`, `Inline`, `Box`, `Lozenge`, 
   - **Replies sent:** number
   - **Releases scanned:** number
 - **Button (top right):** Scan a release, opens a modal with a `Select` of released versions and a Scan button.
-- **Tabs:** Releases (default) | Still waiting (Screen 3).
+- **Tabs:** Releases (default) and Still waiting (Screen 3), with a red count `Badge` on Still waiting.
 - **Release cards** (newest release first), one card per release:
   - Title line: "Release 2.4 · 3 days ago · 3 bugs fixed"
   - Progress bar: "2 of 10 customers told"
