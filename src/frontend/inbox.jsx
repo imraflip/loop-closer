@@ -15,6 +15,7 @@ import { invoke, showFlag } from '@forge/bridge';
 import StatTile from './components/StatTile';
 import ReleaseList from './components/ReleaseList';
 import ReleaseDetail from './components/ReleaseDetail';
+import RefreshButton from './components/RefreshButton';
 import ScanModal from './components/ScanModal';
 import { panelStyle } from './components/styles';
 
@@ -25,6 +26,7 @@ const App = () => {
   const [openVersionId, setOpenVersionId] = useState(null); // set -> Screen 2 (Release inbox)
   const [reloadKey, setReloadKey] = useState(0);
   const [scanOpen, setScanOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false); // "Refresh" keeps the list on show while it reloads
 
   useEffect(() => {
     (async () => {
@@ -40,6 +42,8 @@ const App = () => {
         setState({ loading: false, configured: true, error: null, releases: res.data });
       } catch (err) {
         setState({ loading: false, configured: true, error: err.message, releases: [] });
+      } finally {
+        setRefreshing(false);
       }
     })();
   }, [reloadKey]);
@@ -78,7 +82,16 @@ const App = () => {
     <Stack space="space.300">
       <Inline spread="space-between" alignBlock="center">
         <Text color="color.text.subtle">Tell customers their fix has shipped.</Text>
-        <Button appearance="primary" onClick={() => setScanOpen(true)}>Scan a release</Button>
+        <Inline space="space.100" alignBlock="center">
+          <RefreshButton
+            refreshing={refreshing}
+            onClick={() => {
+              setRefreshing(true);
+              setReloadKey((k) => k + 1);
+            }}
+          />
+          <Button appearance="primary" onClick={() => setScanOpen(true)}>Scan a release</Button>
+        </Inline>
       </Inline>
 
       {ready ? (

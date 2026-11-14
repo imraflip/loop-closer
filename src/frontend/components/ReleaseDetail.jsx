@@ -6,6 +6,7 @@ import { invoke, showFlag } from '@forge/bridge';
 import { firstWord as firstName } from '../../lib/drafts';
 import MatchRow from './MatchRow';
 import MatchPanel from './MatchPanel';
+import RefreshButton from './RefreshButton';
 import SendConfirmModal from './SendConfirmModal';
 import { leftColumnStyle, panelStyle, rightColumnStyle } from './styles';
 import { plural } from './format';
@@ -36,6 +37,7 @@ const ReleaseDetail = ({ versionId, onBack }) => {
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState(null);
   const [rescanning, setRescanning] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [boxRevision, setBoxRevision] = useState(0); // bumps after Use template to remount the reply box
   const [confirming, setConfirming] = useState(null); // match waiting for "Send reply"
 
@@ -157,6 +159,21 @@ const ReleaseDetail = ({ versionId, onBack }) => {
     }
   };
 
+  // "Refresh": loads this release again (for example after Rovo saved a draft). Real unsaved typing
+  // is kept; "edits" that equal the saved text are dropped so the new saved draft shows.
+  const refresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    setActionError(null);
+    const saved = Object.fromEntries(Object.values(tabs).flat().map((m) => [m.requestKey, m.draft || '']));
+    setEdits((e) => Object.fromEntries(Object.entries(e).filter(([key, text]) => text !== saved[key])));
+    try {
+      await load();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   // "Send and next": save the edit, then ask to confirm. Nothing is sent here.
   const askToSend = async (m) => {
     setActionError(null);
@@ -226,7 +243,8 @@ const ReleaseDetail = ({ versionId, onBack }) => {
       <Stack space="space.100" grow="fill">
         <Inline space="space.200" alignBlock="center">
           <Heading as="h2" size="medium">{`Release ${release.name}`}</Heading>
-          <LoadingButton isLoading={rescanning} isDisabled={busy && !rescanning} onClick={rescan}>Rescan</LoadingButton>
+          <LoadingButton isLoading={rescanning} isDisabled={(busy && !rescanning) || refreshing} onClick={rescan}>Rescan</LoadingButton>
+          <RefreshButton refreshing={refreshing} isDisabled={busy} onClick={refresh} />
         </Inline>
         <Text color="color.text.subtle">
           {`${plural(release.bugCount, 'bug fixed', 'bugs fixed')} · ${plural(release.total, 'customer matched', 'customers matched')}`}
