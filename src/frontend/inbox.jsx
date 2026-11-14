@@ -3,7 +3,6 @@ import ForgeReconciler, {
   Box,
   Button,
   EmptyState,
-  Heading,
   Inline,
   Lozenge,
   ProgressBar,
@@ -15,11 +14,36 @@ import ForgeReconciler, {
   TabPanel,
   Tabs,
   Text,
+  xcss,
 } from '@forge/react';
 import { invoke } from '@forge/bridge';
 
 const NOT_SET_UP = 'Loop Closer is not set up yet. Ask a Jira admin to choose projects in Loop Closer settings.';
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Card look: token border + padding, full width of the page.
+const cardStyle = xcss({
+  width: '100%',
+  padding: 'space.300',
+  backgroundColor: 'elevation.surface.raised',
+  borderColor: 'color.border',
+  borderWidth: 'border.width',
+  borderStyle: 'solid',
+  borderRadius: 'border.radius',
+});
+
+// Stat tile: same look; width 0% + flexGrow 1 makes the three tiles share the row equally.
+const tileStyle = xcss({
+  display: 'block',
+  flexGrow: 1,
+  width: '0%',
+  padding: 'space.300',
+  backgroundColor: 'elevation.surface.sunken',
+  borderColor: 'color.border',
+  borderWidth: 'border.width',
+  borderStyle: 'solid',
+  borderRadius: 'border.radius',
+});
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
@@ -32,7 +56,7 @@ function daysAgo(date) {
 }
 
 const StatTile = ({ label, value, danger }) => (
-  <Box padding="space.200" backgroundColor="elevation.surface.sunken">
+  <Box xcss={tileStyle}>
     <Stack space="space.050">
       <Text size="small" color="color.text.subtle">{label}</Text>
       {/* Heading has no red colour, so the number is a large bold Text. */}
@@ -47,7 +71,7 @@ const ReleaseCard = ({ release }) => {
     .join(' · ');
   const told = `${release.sent} of ${plural(release.total, 'customer', 'customers')} told`;
   return (
-    <Box padding="space.200" backgroundColor="elevation.surface.raised">
+    <Box xcss={cardStyle}>
       <Stack space="space.100">
         <Inline spread="space-between" alignBlock="center">
           <Text weight="semibold">{title}</Text>
@@ -85,7 +109,7 @@ const ReleaseList = ({ state }) => {
     );
   }
   return (
-    <Stack space="space.200">
+    <Stack space="space.200" grow="fill">
       {state.releases.map((r) => <ReleaseCard key={r.versionId} release={r} />)}
     </Stack>
   );
@@ -122,11 +146,8 @@ const App = () => {
 
   return (
     <Stack space="space.300">
-      <Inline spread="space-between" alignBlock="start">
-        <Stack space="space.050">
-          <Heading size="xlarge" as="h1">Loop Closer</Heading>
-          <Text color="color.text.subtle">Tell customers their fix has shipped.</Text>
-        </Stack>
+      <Inline spread="space-between" alignBlock="center">
+        <Text color="color.text.subtle">Tell customers their fix has shipped.</Text>
         {/* Placeholder: opens the scan modal (Select of released versions + Scan) in a later Phase 2 task. */}
         <Button appearance="primary" isDisabled>Scan a release</Button>
       </Inline>
