@@ -1,38 +1,126 @@
 modules:
+  trigger:
+    - key: on-version-released
+      function: on-version-released-fn
+      events:
+        - avi:jira:released:version
+  jira:projectPage:
+    - key: loop-closer-inbox
+      resource: inbox
+      resolver:
+        function: resolver-fn
+      render: native
+      title: Loop Closer
+  jira:adminPage:
+    - key: loop-closer-settings
+      resource: admin
+      resolver:
+        function: resolver-fn
+      render: native
+      title: Loop Closer settings
+      useAsConfig: true
   rovo:agent:
-    - key: loop-closer-hello-world-agent
-      name: loop-closer
-      description: An agent for testing Forge agent functionality
-      prompt: >
-        You are a simple agent that helps Forge developers build their first
-        Rovo agent.
-
-        You can create Forge logs by using the hello-world-logger action.
-
-        If the user hasn't provided a message when they ask you to create a log
-        ask them to provide one.
-      conversationStarters:
-        - Log a message to Forge logs
+    - key: loop-closer-agent
+      name: Loop Closer
+      description: Tells you which customers are still waiting to hear that their bug is fixed, and helps write the replies.
+      prompt: resource:agent-prompt;prompt.md
       actions:
-        - hello-world-logger
+        - get-waiting-customers
+        - get-release-matches
+        - get-draft-context
+        - save-reply-draft
+        - get-loop-status
   action:
-    - key: hello-world-logger
-      name: Log a message
-      function: messageLogger
+    - key: get-waiting-customers
+      name: Get waiting customers
+      function: action-waiting-fn
       actionVerb: GET
-      description: >
-        When a user asks to log a message, this action logs the message to the
-        Forge logs.
+      description: Lists customer requests whose bug fix has shipped but who have not been told yet. Use for questions like "who is still waiting".
       inputs:
-        message:
-          title: Message
+        releaseName:
+          title: Release name
+          type: string
+          required: false
+          description: Jira version name, for example 2.4. Leave empty for all releases.
+    - key: get-release-matches
+      name: Get release matches
+      function: action-matches-fn
+      actionVerb: GET
+      description: Lists every customer request matched to a release, with status, score and reason.
+      inputs:
+        releaseName:
+          title: Release name
           type: string
           required: true
-          description: |
-            "The message that the user has requested be logged to Forge logs"
+          description: Jira version name, for example 2.4
+    - key: get-draft-context
+      name: Get draft context
+      function: action-context-fn
+      actionVerb: GET
+      description: Returns what is needed to write a reply for one request - customer first name, their words, the bug fixed, the release, the tone.
+      inputs:
+        requestKey:
+          title: Request key
+          type: string
+          required: true
+          description: Service desk request key, for example HELP-5
+    - key: save-reply-draft
+      name: Save reply draft
+      function: action-save-draft-fn
+      actionVerb: UPDATE
+      description: Saves an improved reply draft for one request so a person can review and send it in the Release Inbox. Never sends anything.
+      inputs:
+        requestKey:
+          title: Request key
+          type: string
+          required: true
+          description: Service desk request key
+        draftText:
+          title: Draft text
+          type: string
+          required: true
+          description: The full reply text, plain words, under 120 words
+    - key: get-loop-status
+      name: Get loop status
+      function: action-status-fn
+      actionVerb: GET
+      description: Counts told, waiting and skipped customers for a release.
+      inputs:
+        releaseName:
+          title: Release name
+          type: string
+          required: false
+          description: Jira version name. Leave empty for the latest release.
   function:
-    - key: messageLogger
-      handler: index.messageLogger
+    - key: resolver-fn
+      handler: index.resolver
+    - key: on-version-released-fn
+      handler: index.onVersionReleased
+    - key: action-waiting-fn
+      handler: index.getWaitingCustomers
+    - key: action-matches-fn
+      handler: index.getReleaseMatches
+    - key: action-context-fn
+      handler: index.getDraftContext
+    - key: action-save-draft-fn
+      handler: index.saveReplyDraft
+    - key: action-status-fn
+      handler: index.getLoopStatus
+resources:
+  - key: inbox
+    path: src/frontend/inbox.jsx
+  - key: admin
+    path: src/frontend/admin.jsx
+  - key: agent-prompt
+    path: prompts
+permissions:
+  scopes:
+    - read:jira-work
+    - write:jira-work
+    - read:jira-user
+    - read:servicedesk-request
+    - write:servicedesk-request
+    - storage:app
 app:
   runtime:
     name: nodejs24.x

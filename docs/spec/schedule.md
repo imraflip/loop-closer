@@ -142,4 +142,4 @@ The build runs in 8 phases, in this order. A phase is finished only when its "Do
 
 ## Commit message style
 
-`type(area): what changed`, lowercase, under 60 characters. Types: `feat`, `fix`, `test`, `docs`, `chore`. When Claude Code wrote most of a commit, add a last line: `Co-authored-by: Claude Code`.
+`type(area): what changed`, lowercase, under 60 characters. Types: `feat`, `fix`, `test`, `docs`, `chore`. Never use `Co-authored-by: Claude Code`.

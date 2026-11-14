@@ -389,3 +389,4 @@ export {
 - Exact UI Kit component names and the Rovo-open bridge call: checked with the Forge MCP server in Phases 2 and 3.
 - The Teamwork Graph query for the owner hint (B2): chosen in Phase 5 from the curated queries list, only if B2 is kept.
 - Matching threshold may move from 0.35 after the fixture tests in Phase 1; the tests decide, not guesses.
+- Sample data scope (decide in Phase 6): `POST /rest/api/3/version` needs `manage:jira-project`, which is not in the scope list. Either add that scope, or have `createSampleData` ask the user to create the LC-demo version by hand.

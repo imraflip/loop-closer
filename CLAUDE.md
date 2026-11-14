@@ -29,7 +29,9 @@ The person you work with is Rafli: explain in short, plain English.
 - Show me what changed in plain words, then suggest the commit message.
 - If a spec file and the code disagree, stop and tell me. Do not guess.
 - If you are not sure about a Forge detail, say so. Do not make one up.
+- Never add 'Co-authored-by: Claude Code' (or any Claude co-author line) to commit messages. Rafli makes the commits himself.
 
 ## Project facts
-- Stack: plain JavaScript, Forge UI Kit, Node 22, runs in Ubuntu (WSL).
+- Stack: plain JavaScript, Forge UI Kit.
+- Local tools: Node 22 in Ubuntu. Forge runtime: nodejs24.x (see manifest.yml).
 - Demo site and app id are in manifest.yml and docs/spec/setup.md.

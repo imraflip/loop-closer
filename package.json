@@ -1,16 +1,21 @@
 {
-  "name": "rovo-agent-rovo",
-  "version": "1.2.3",
-  "description": "a sample forge app with rovo-agent module",
+  "name": "loop-closer",
+  "version": "0.1.0",
+  "description": "Closes the loop with customers when a Jira fix ships.",
   "main": "index.js",
   "private": true,
   "license": "MIT",
+  "scripts": {
+    "test": "vitest run",
+    "lint": "forge lint"
+  },
   "dependencies": {
     "@forge/api": "^8.5.0",
     "@forge/bridge": "^7.3.0",
     "@forge/kvs": "^2.1.2",
     "@forge/react": "^12.5.0",
-    "@forge/resolver": "^2.0.2"
+    "@forge/resolver": "^2.0.2",
+    "react": "^18.3.1"
   },
   "devDependencies": {
     "vitest": "^5.1.0"
