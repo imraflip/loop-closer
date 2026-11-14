@@ -11,10 +11,11 @@ import ForgeReconciler, {
   Tabs,
   Text,
 } from '@forge/react';
-import { invoke } from '@forge/bridge';
+import { invoke, showFlag } from '@forge/bridge';
 import StatTile from './components/StatTile';
 import ReleaseList from './components/ReleaseList';
 import ReleaseDetail from './components/ReleaseDetail';
+import ScanModal from './components/ScanModal';
 import { panelStyle } from './components/styles';
 
 const NOT_SET_UP = 'Loop Closer is not set up yet. Ask a Jira admin to choose projects in Loop Closer settings.';
@@ -23,6 +24,7 @@ const App = () => {
   const [state, setState] = useState({ loading: true, configured: true, error: null, releases: [] });
   const [openVersionId, setOpenVersionId] = useState(null); // set -> Screen 2 (Release inbox)
   const [reloadKey, setReloadKey] = useState(0);
+  const [scanOpen, setScanOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -55,6 +57,19 @@ const App = () => {
     return <ReleaseDetail versionId={openVersionId} onBack={back} />;
   }
 
+  // After a scan: close the modal, refresh the release list and show a toast.
+  const scanned = (release) => {
+    setScanOpen(false);
+    showFlag({
+      id: `scanned-${release.versionId}`,
+      title: `Release ${release.name} scanned`,
+      description: `${release.total} ${release.total === 1 ? 'customer' : 'customers'} matched`,
+      type: 'success',
+      isAutoDismiss: true,
+    });
+    setReloadKey((k) => k + 1);
+  };
+
   const waiting = state.releases.reduce((sum, r) => sum + r.waiting, 0);
   const sent = state.releases.reduce((sum, r) => sum + r.sent, 0);
   const ready = !state.loading && !state.error;
@@ -63,8 +78,7 @@ const App = () => {
     <Stack space="space.300">
       <Inline spread="space-between" alignBlock="center">
         <Text color="color.text.subtle">Tell customers their fix has shipped.</Text>
-        {/* Placeholder: opens the scan modal (Select of released versions + Scan) in a later Phase 2 task. */}
-        <Button appearance="primary" isDisabled>Scan a release</Button>
+        <Button appearance="primary" onClick={() => setScanOpen(true)}>Scan a release</Button>
       </Inline>
 
       {ready ? (
@@ -92,6 +106,8 @@ const App = () => {
           </Box>
         </TabPanel>
       </Tabs>
+
+      <ScanModal isOpen={scanOpen} onClose={() => setScanOpen(false)} onScanned={scanned} />
     </Stack>
   );
 };
