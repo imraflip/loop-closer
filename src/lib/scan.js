@@ -1,7 +1,8 @@
 // findMatches(versionId) runs scan steps 1-6 and saves nothing.
-// scanRelease(versionId) runs findMatches, then step 8 (save matches and release).
+// scanRelease(versionId) runs findMatches, then steps 7-8 (template drafts, save matches and release).
 import { getVersion, getFixedBugs, getOpenRequests, getOpenRequestsByKeys, adfToText } from './jira.js';
 import { matchRequests, DEFAULTS } from './match.js';
+import { templateDraft } from './drafts.js';
 import { getSettings, listMatches, saveMatch, saveRelease, countStatuses } from './store.js';
 
 const DEFAULT_LOOKBACK_DAYS = 180;
@@ -68,16 +69,14 @@ export function buildMatches({ versionId, releaseName, bugIssues, requests, jsmK
   return matches;
 }
 
-// Step 8 rule for one match. Returns the record to save, or null to leave the stored one alone.
-export function mergeMatch(existing, fresh) {
+// Steps 7 + 8 for one match. Returns the record to save, or null to leave the stored one alone.
+// A saved draft (template, edited or rovo) is kept; a new match or a waiting one with no draft gets a template draft.
+export function mergeMatch(existing, fresh, settings) {
   if (existing && PROTECTED.has(existing.status)) return null;
-  return {
-    ...fresh,
-    status: existing?.status || 'waiting',
-    draft: existing?.draft ?? null,
-    draftSource: existing?.draftSource ?? null,
-    sentAt: null,
-  };
+  if (existing?.draft) {
+    return { ...fresh, status: existing.status, draft: existing.draft, draftSource: existing.draftSource ?? null, sentAt: null };
+  }
+  return { ...fresh, status: 'drafted', draft: templateDraft(fresh, settings), draftSource: 'template', sentAt: null };
 }
 
 export async function findMatches(versionId, { asUser = false } = {}) {
@@ -144,11 +143,12 @@ export async function scanRelease(versionId, { asUser = false } = {}) {
   const { release, matches } = found.data;
 
   try {
-    // 8. save matches (never overwrite sent / skipped / not_related), then the release
+    // 7 + 8. draft and save matches (never overwrite sent / skipped / not_related or a saved draft), then the release
+    const settings = await getSettings();
     const stored = new Map((await listMatches(versionId)).map((m) => [m.requestKey, m]));
     const toSave = [];
     for (const fresh of matches) {
-      const merged = mergeMatch(stored.get(fresh.requestKey), fresh);
+      const merged = mergeMatch(stored.get(fresh.requestKey), fresh, settings);
       if (merged) {
         toSave.push(merged);
         stored.set(merged.requestKey, merged);

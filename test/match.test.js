@@ -81,11 +81,11 @@ describe('matcher', () => {
 
   test('8. running the scan twice keeps a sent match as sent', () => {
     const fresh = buildMatches(scanArgs()).find((x) => x.requestKey === 'HELP-5');
-    const first = mergeMatch(undefined, fresh);
-    expect(first.status).toBe('waiting');
+    const first = mergeMatch(undefined, fresh, {});
+    expect(first.status).toBe('drafted');
     const sent = { ...first, status: 'sent', sentAt: '2026-11-14T10:00:00.000Z' };
-    expect(mergeMatch(sent, fresh)).toBeNull();
-    for (const status of ['skipped', 'not_related']) expect(mergeMatch({ ...first, status }, fresh)).toBeNull();
+    expect(mergeMatch(sent, fresh, {})).toBeNull();
+    for (const status of ['skipped', 'not_related']) expect(mergeMatch({ ...first, status }, fresh, {})).toBeNull();
   });
 });
 
