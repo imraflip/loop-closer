@@ -24,7 +24,7 @@ const requestJira = vi.fn();
 vi.mock('@forge/api', () => ({ default: { asUser: () => ({ requestJira }), asApp: () => ({ requestJira }) }, route: String.raw }));
 
 const actions = await import('../src/actions/agentActions.js');
-const { getWaitingCustomers, getReleaseMatches, getDraftContext, getLoopStatus, saveReplyDraft, findRelease, daysWaiting, hideEmails, customerFirstName } =
+const { reasonWordsOf, getWaitingCustomers, getReleaseMatches, getDraftContext, getLoopStatus, saveReplyDraft, findRelease, daysWaiting, hideEmails, customerFirstName } =
   actions;
 
 const putRelease = (versionId, name, releasedAt) => kv.set(`release:${versionId}`, { versionId, name, releasedAt });
@@ -125,6 +125,17 @@ describe('getReleaseMatches', () => {
     ]);
     expect(result.data[2]).toMatchObject({ linked: true, reasons: ['pdf', 'export', 'report'] });
     noEmails(result);
+  });
+
+  test('reasons are full words from reasonWords; old matches without it keep the stem', async () => {
+    putMatch('200', '2.4', 'HELP-6', { reasons: ['logg', 'setting', 'dark'], reasonWords: { logg: 'logging', setting: 'settings', dark: 'dark' } });
+    putMatch('200', '2.4', 'HELP-7', { reasons: ['logg', 'export'], reasonWords: { logg: 'logging' } });
+    const rows = (await getReleaseMatches({ releaseName: '2.4' }, {})).data;
+    const reasonsOf = (key) => rows.find((r) => r.requestKey === key).reasons;
+    expect(reasonsOf('HELP-6')).toEqual(['logging', 'settings', 'dark']);
+    expect(reasonsOf('HELP-7')).toEqual(['logging', 'export']); // missing entry: stem
+    expect(reasonsOf('HELP-5')).toEqual(['pdf', 'export', 'report']); // no reasonWords at all: stems
+    expect(reasonWordsOf({ linked: true, reasons: ['linked to LOOP-1'] })).toEqual(['linked to LOOP-1']);
   });
 
   test('release name is needed', async () => {

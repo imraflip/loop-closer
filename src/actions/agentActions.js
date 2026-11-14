@@ -49,6 +49,12 @@ export function findRelease(releases, releaseName) {
   return list.find((r) => String(r.name ?? '').trim().toLowerCase() === name) ?? null;
 }
 
+// Reasons as full words ("logging", not the stem "logg"); stem when reasonWords is missing (old matches).
+// Linked matches keep their "linked to KEY" reason.
+export function reasonWordsOf(match) {
+  return (match.reasons ?? []).map((s) => match.reasonWords?.[s] || s);
+}
+
 // One stored match -> the plain row the agent sees.
 export function matchRow(match, release, now = new Date()) {
   return {
@@ -112,7 +118,7 @@ export function getReleaseMatches(payload) {
       ...matchRow(m, release, now),
       linked: !!m.linked,
       score: Math.round((Number(m.score) || 0) * 100), // percent
-      reasons: (m.reasons ?? []).map(hideEmails),
+      reasons: reasonWordsOf(m).map(hideEmails),
     }));
     return { ok: true, data: rows };
   });
