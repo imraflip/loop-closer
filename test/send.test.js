@@ -36,7 +36,7 @@ vi.mock('@forge/api', () => {
   };
 });
 
-const { updateMatch, sendReply, rescanRelease } = await import('../src/resolvers/index.js');
+const { updateMatch, sendReply, rescanRelease, getMatches } = await import('../src/resolvers/index.js');
 
 const SETTINGS = { jiraProjectKey: 'LOOP', jsmProjectKey: 'HELP', autoResolve: false, resolveStatusName: 'Resolved' };
 const match = (extra = {}) => ({
@@ -66,6 +66,35 @@ beforeEach(() => {
   kv.set('settings', SETTINGS);
   kv.set('release:1', { versionId: '1', name: '2.4', bugKeys: ['LOOP-1'], counts: {} });
   kv.set('match:1:HELP-1', match());
+});
+
+describe('placeholder in the inbox display', () => {
+  const withMyself = (myself) => {
+    const base = happyJira();
+    return (method, path, body) => (path === '/rest/api/3/myself' ? myself : base(method, path, body));
+  };
+
+  test('getMatches shows the signed-in user\'s first name; the stored draft keeps the placeholder', async () => {
+    const res = await getMatches({ versionId: '1' });
+    expect(res.data.tabs.waiting[0].draft).toBe('Hi Ana,\n\nFixed.\n\nThanks,\nRafli');
+    expect(stored().draft).toContain('{agentFirstName}');
+  });
+
+  test('getMatches signs "Support" when the name cannot be read, and still loads', async () => {
+    for (const myself of [{ status: 500, json: { errorMessage: 'boom' } }, { json: { displayName: '' } }]) {
+      jira.handle = withMyself(myself);
+      const res = await getMatches({ versionId: '1' });
+      expect(res.ok).toBe(true);
+      expect(res.data.tabs.waiting[0].draft).toBe('Hi Ana,\n\nFixed.\n\nThanks,\nSupport');
+    }
+  });
+
+  test('updateMatch "Use template" returns the new draft with the name filled, never braces', async () => {
+    const res = await updateMatch({ versionId: '1', requestKey: 'HELP-1', resetDraft: true });
+    expect(res.ok).toBe(true);
+    expect(res.data.draft).not.toMatch(/[{}]/);
+    expect(res.data.draft).toMatch(/\nRafli$/);
+  });
 });
 
 describe('updateMatch', () => {
@@ -180,12 +209,43 @@ describe('sendReply', () => {
     expect(jira.calls).toHaveLength(0);
   });
 
-  test('refuses a draft that is only the agent placeholder when the agent has no name', async () => {
+  test('refuses a draft that is only the agent placeholder, without calling Jira', async () => {
     kv.set('match:1:HELP-1', match({ draft: '{agentFirstName}' }));
-    const base = happyJira();
-    jira.handle = (method, path, body) => (path === '/rest/api/3/myself' ? { json: { displayName: '' } } : base(method, path, body));
     expect(await sendReply({ versionId: '1', requestKey: 'HELP-1' })).toEqual({ ok: false, message: 'Not sent: the reply is empty' });
-    expect(posts()).toHaveLength(0);
+    expect(jira.calls).toHaveLength(0);
+  });
+
+  test('"Support" fallback: name unreadable or empty, the reply still goes out signed "Support"', async () => {
+    const base = happyJira();
+    for (const myself of [{ status: 500, json: { errorMessage: 'boom' } }, { json: { displayName: '' } }]) {
+      kv.set('match:1:HELP-1', match());
+      jira.calls = [];
+      jira.handle = (method, path, body) => (path === '/rest/api/3/myself' ? myself : base(method, path, body));
+      const res = await sendReply({ versionId: '1', requestKey: 'HELP-1' });
+      expect(res.ok).toBe(true);
+      expect(posts()[0].body.body).toBe('Hi Ana,\n\nFixed.\n\nThanks,\nSupport');
+    }
+  });
+
+  test('no braces in any posted comment: template, edited and Rovo drafts, with and without a name', async () => {
+    const drafts = [
+      ['template', 'Hi Ana,\n\nFixed.\n\nThanks,\n{agentFirstName}'],
+      ['edited', 'Hi Ana, sorted now.\n{ agentFirstName }'],
+      ['rovo', 'Dear Ana,\n\nResolved in 2.4.\n\nKind regards,\n{AgentFirstName}'],
+    ];
+    const base = happyJira();
+    for (const displayName of ['Rafli Permana', '']) {
+      for (const [draftSource, draft] of drafts) {
+        kv.set('match:1:HELP-1', match({ draft, draftSource }));
+        jira.handle = (method, path, b) => (path === '/rest/api/3/myself' ? { json: { displayName } } : base(method, path, b));
+        expect((await sendReply({ versionId: '1', requestKey: 'HELP-1' })).ok).toBe(true);
+      }
+    }
+    const bodies = posts().map((p) => p.body.body);
+    expect(bodies).toHaveLength(6);
+    for (const body of bodies) expect(body).not.toMatch(/[{}]|agentFirstName/i);
+    expect(bodies.filter((b) => b.endsWith('Rafli'))).toHaveLength(3);
+    expect(bodies.filter((b) => b.endsWith('Support'))).toHaveLength(3);
   });
 
   test('comment API not 201: "Not sent", match stays drafted', async () => {

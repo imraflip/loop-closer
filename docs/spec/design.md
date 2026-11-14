@@ -107,7 +107,7 @@ Kind regards,
 {agentFirstName}
 ```
 
-`firstName` = first word of the reporter's display name; `agentFirstName` = first word of the current user's display name, filled at send time.
+`firstName` = first word of the reporter's display name; `agentFirstName` = first word of the current user's display name, filled when the inbox shows the draft and again at send time; "Support" if the name cannot be read. Stored drafts keep the placeholder.
 
 ## Rovo agent: what a good conversation looks like
 

@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { templateDraft, wordCount, firstWord, fillAgentName, MAX_WORDS, AGENT_PLACEHOLDER } from '../src/lib/drafts.js';
+import { templateDraft, wordCount, firstWord, fillAgentName, agentFirstName, hasReplyText, MAX_WORDS, AGENT_PLACEHOLDER } from '../src/lib/drafts.js';
 import { mergeMatch } from '../src/lib/scan.js';
 
 const match = { customerName: 'Eko Prasetyo', requestSummary: 'Report PDF never finishes', releaseName: '2.4' };
@@ -92,8 +92,22 @@ describe('fillAgentName', () => {
     expect(fillAgentName('No placeholder here', 'Siti')).toBe('No placeholder here');
   });
 
-  test('no agent name removes the placeholder', () => {
-    expect(fillAgentName('Kind regards,\n{agentFirstName}', '')).toBe('Kind regards,');
+  test('"Support" fallback: no agent name signs as Support and leaves no braces', () => {
+    for (const name of ['', '   ', null, undefined]) {
+      expect(fillAgentName('Kind regards,\n{agentFirstName}', name)).toBe('Kind regards,\nSupport');
+    }
+    expect(fillAgentName(templateDraft(match, { tone: 'formal' }), '')).not.toMatch(/[{}]/);
+  });
+
+  test('first name only, also from an email-like name; small placeholder variants are filled too', () => {
+    expect(agentFirstName('Rafli Permana')).toBe('Rafli');
+    expect(agentFirstName('siti.rahma@example.com')).toBe('Siti');
+    expect(fillAgentName('Cheers,\n{ agentFirstName }\n{AgentFirstName}', 'Siti Rahma')).toBe('Cheers,\nSiti\nSiti');
+  });
+
+  test('hasReplyText: false when the draft is only the placeholder', () => {
+    expect(hasReplyText('  {agentFirstName}  ')).toBe(false);
+    expect(hasReplyText('Fixed.\n{agentFirstName}')).toBe(true);
   });
 });
 

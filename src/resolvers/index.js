@@ -5,9 +5,19 @@ import {
 import { getProjectVersions, getMyDisplayName } from '../lib/jira.js';
 import { getRequestStatus, addPublicComment, resolveRequest, checkRequestKey } from '../lib/jsm.js';
 import { NOT_CONFIGURED, scanRelease } from '../lib/scan.js';
-import { firstWord, fillAgentName, templateDraft, MAX_DRAFT_CHARS } from '../lib/drafts.js';
+import { firstWord, fillAgentName, hasReplyText, templateDraft, MAX_DRAFT_CHARS } from '../lib/drafts.js';
 
 const fail = (err) => ({ ok: false, message: err?.message || String(err) });
+
+// Signed-in user's display name for the sign-off; '' when it cannot be read (fillAgentName then uses "Support").
+async function myDisplayName() {
+  try {
+    return await getMyDisplayName();
+  } catch (err) {
+    console.error(`could not read the current user's name: ${err.message}`);
+    return '';
+  }
+}
 
 export async function getSettings() {
   try {
@@ -88,7 +98,8 @@ export function sortMatches(matches) {
 }
 
 // Stored match -> what the UI needs. No account id or email leaves the backend.
-export function matchView(m) {
+// The draft is shown with the placeholder filled in (agentDisplayName = the signed-in user).
+export function matchView(m, agentDisplayName = '') {
   return {
     requestKey: m.requestKey,
     bugKey: m.bugKey,
@@ -99,17 +110,17 @@ export function matchView(m) {
     customerName: String(m.customerName || '').includes('@') ? firstWord(m.customerName) : m.customerName || 'there',
     requestSummary: m.requestSummary || '',
     status: m.status,
-    draft: m.draft ?? null,
+    draft: m.draft == null ? null : fillAgentName(m.draft, agentDisplayName),
     draftSource: m.draftSource ?? null,
     sentAt: m.sentAt ?? null,
   };
 }
 
-export function groupMatches(matches) {
+export function groupMatches(matches, agentDisplayName = '') {
   const tabs = { waiting: [], sent: [], other: [] };
   for (const m of sortMatches(matches)) {
     const tab = TAB_OF[m.status];
-    if (tab) tabs[tab].push(matchView(m));
+    if (tab) tabs[tab].push(matchView(m, agentDisplayName));
   }
   return tabs;
 }
@@ -168,7 +179,7 @@ export async function updateMatch(payload) {
 
     const saved = await saveMatch(next);
     if (saved.status !== match.status) await refreshCounts(saved.versionId);
-    return { ok: true, data: matchView(saved) };
+    return { ok: true, data: matchView(saved, await myDisplayName()) };
   } catch (err) {
     return fail(err);
   }
@@ -186,7 +197,7 @@ export async function sendReply(payload) {
   const notSent = (reason) => ({ ok: false, message: `Not sent: ${reason}` });
   if (match.status === 'sent') return notSent(`${match.requestKey} was already sent`);
   if (!SENDABLE.has(match.status)) return notSent(`${match.requestKey} is marked ${match.status.replace('_', ' ')}`);
-  if (!String(match.draft || '').trim()) return notSent('the reply is empty');
+  if (!hasReplyText(match.draft)) return notSent('the reply is empty');
 
   let body;
   try {
@@ -195,7 +206,7 @@ export async function sendReply(payload) {
     if (!requestTypeId) {
       return notSent(`${match.requestKey}: this request has no request type; create it via the portal (Raise a request)`);
     }
-    body = fillAgentName(match.draft, await getMyDisplayName());
+    body = fillAgentName(match.draft, await myDisplayName());
     if (!body.trim()) return notSent('the reply is empty');
     await addPublicComment(match.requestKey, body);
   } catch (err) {
@@ -228,11 +239,11 @@ export async function sendReply(payload) {
 export async function getMatches(payload) {
   try {
     const versionId = checkVersionId(payload?.versionId);
-    const [release, matches] = await Promise.all([getRelease(versionId), listMatches(versionId)]);
+    const [release, matches, agentName] = await Promise.all([getRelease(versionId), listMatches(versionId), myDisplayName()]);
     if (!release) return { ok: false, message: 'This release has not been scanned yet' };
     return {
       ok: true,
-      data: { release: releaseSummary({ ...release, counts: countStatuses(matches) }), tabs: groupMatches(matches) },
+      data: { release: releaseSummary({ ...release, counts: countStatuses(matches) }), tabs: groupMatches(matches, agentName) },
     };
   } catch (err) {
     return fail(err);

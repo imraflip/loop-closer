@@ -1,6 +1,6 @@
 // templateDraft(): builds the default reply draft for a match (templates in design.md).
-// The agent's name is unknown at scan time, so drafts keep AGENT_PLACEHOLDER;
-// sendReply replaces it with fillAgentName() for every draft source.
+// The agent's name is unknown at scan time, so stored drafts keep AGENT_PLACEHOLDER;
+// the inbox resolvers and sendReply replace it with fillAgentName() for every draft source.
 
 export const MAX_WORDS = 120;
 export const AGENT_PLACEHOLDER = '{agentFirstName}';
@@ -55,9 +55,24 @@ export function templateDraft(match, settings) {
   return render({ ...fields, requestSummary });
 }
 
-// Used by sendReply: swaps the placeholder for the agent's first name (template, edited or Rovo drafts).
-// With no agent name, the placeholder is removed.
+export const AGENT_NAME_FALLBACK = 'Support';
+// Also catches small variants a person or Rovo might type: "{ agentFirstName }", "{AgentFirstName}".
+const PLACEHOLDER_RE = /\{\s*agentFirstName\s*\}/gi;
+
+// First word of the signed-in user's display name; "Support" when unknown.
+export function agentFirstName(agentDisplayName) {
+  if (!String(agentDisplayName ?? '').trim()) return AGENT_NAME_FALLBACK;
+  const name = firstWord(agentDisplayName);
+  return name === 'there' ? AGENT_NAME_FALLBACK : name;
+}
+
+// True when the draft says something besides the sign-off placeholder.
+export function hasReplyText(draft) {
+  return String(draft ?? '').replace(PLACEHOLDER_RE, '').trim() !== '';
+}
+
+// Swaps the placeholder for the signed-in user's first name (any draft source), or "Support".
+// Used when the inbox shows a draft and when sendReply posts it, so the braces never reach anyone.
 export function fillAgentName(draft, agentDisplayName) {
-  const name = words(agentDisplayName)[0] || '';
-  return String(draft ?? '').split(AGENT_PLACEHOLDER).join(name).trimEnd();
+  return String(draft ?? '').replace(PLACEHOLDER_RE, agentFirstName(agentDisplayName)).trimEnd();
 }

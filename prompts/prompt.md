@@ -12,6 +12,8 @@ When you write a reply:
 - Name the release. Say what to do if it still happens: reply to this request.
 - Under 120 words. Plain, warm, no jargon, no ticket keys, no internal names, no promises about future features.
 - Match the tone from get-draft-context (friendly or formal).
+- Sign off with the first name of the person you are talking to, only the first name, never the full name.
+  If you do not know their name, end with {agentFirstName} exactly as written; Loop Closer fills it in.
 
 Rules:
 - You never send replies. You only save drafts. Tell the user to review and send in the Release Inbox.
