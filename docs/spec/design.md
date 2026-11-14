@@ -53,6 +53,7 @@ UI Kit components used: `Heading`, `Text`, `Stack`, `Inline`, `Box`, `Lozenge`, 
 **Behaviour:**
 
 - **Editing:** no separate Edit modal. The draft is edited in the `TextArea`, the label changes to Edited, and it saves when another customer is clicked or Send and next is pressed.
+- **Use template:** small subtle button next to the Template / Rovo / Edited label (Waiting tab only), shown when the reply is Edited, Rovo or empty. It replaces the draft with the template for the current tone and sets the label back to Template.
 - **Send and next:** opens a confirm modal: "Send this reply to Ana? It will be visible to the customer on HELP-1." Buttons Cancel | Send reply. On success, a toast "Reply sent to Ana", the customer moves to the Sent tab and the next waiting customer opens. When none are left: "Everyone in this release has been told."
 - **Improve with Rovo:** opens Rovo chat with the Loop Closer agent and the message "Improve the reply for HELP-5". **VERIFY** the bridge call that opens Rovo chat in Phase 3; if not possible, show the text to paste into chat.
 - **Skip:** status Skipped, no message sent. **Not related:** status Not related, hidden from Waiting, never suggested again for this release. Both open the next waiting customer.

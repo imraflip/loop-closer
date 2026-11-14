@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Box, Button, EmptyState, Heading, Inline, ProgressBar, SectionMessage, Spinner, Stack, Tab, TabList, TabPanel, Tabs, Text,
+  Box, Button, EmptyState, Heading, Inline, LoadingButton, ProgressBar, SectionMessage, Spinner, Stack, Tab, TabList, TabPanel, Tabs, Text,
 } from '@forge/react';
 import { invoke, showFlag } from '@forge/bridge';
 import { firstWord as firstName } from '../../lib/drafts';
@@ -35,6 +35,8 @@ const ReleaseDetail = ({ versionId, onBack }) => {
   const [edits, setEdits] = useState({}); // request key -> unsaved draft text
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState(null);
+  const [rescanning, setRescanning] = useState(false);
+  const [boxRevision, setBoxRevision] = useState(0); // bumps after Use template to remount the reply box
   const [confirming, setConfirming] = useState(null); // match waiting for "Send reply"
 
   // Reloads keep the current screen on show (no spinner) until the new data arrives.
@@ -120,6 +122,41 @@ const ReleaseDetail = ({ versionId, onBack }) => {
     }
   };
 
+  // "Use template": replace this reply with the template (drops unsaved typing too), then reload.
+  const useTemplate = async (m) => {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await call('updateMatch', { versionId, requestKey: m.requestKey, resetDraft: true });
+      setEdits(({ [m.requestKey]: _dropped, ...rest }) => rest);
+      showFlag({ id: `template-${m.requestKey}-${Date.now()}`, title: 'Reply reset to template', type: 'success', isAutoDismiss: true });
+      await load();
+      setBoxRevision((n) => n + 1);
+    } catch (err) {
+      setActionError(`Not reset: ${err.message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // "Rescan": runs the scan again (keeps sent, skipped, not related and saved drafts), then reloads this screen.
+  const rescan = async () => {
+    if (rescanning) return;
+    setRescanning(true);
+    setBusy(true);
+    setActionError(null);
+    try {
+      const summary = await call('rescanRelease', { versionId });
+      showFlag({ id: `rescan-${versionId}-${Date.now()}`, title: `Scan done: ${plural(summary.total, 'customer', 'customers')} matched`, type: 'success', isAutoDismiss: true });
+      await load();
+    } catch (err) {
+      setActionError(err.message);
+    } finally {
+      setRescanning(false);
+      setBusy(false);
+    }
+  };
+
   // "Send and next": save the edit, then ask to confirm. Nothing is sent here.
   const askToSend = async (m) => {
     setActionError(null);
@@ -171,7 +208,9 @@ const ReleaseDetail = ({ versionId, onBack }) => {
             draft={draft}
             edited={editable && isEdited(selected)}
             busy={busy}
+            boxRevision={boxRevision}
             onDraftChange={(text) => setEdits((e) => ({ ...e, [selected.requestKey]: text }))}
+            onUseTemplate={() => useTemplate(selected)}
             onSkip={() => setStatus(selected, 'skipped')}
             onNotRelated={() => setStatus(selected, 'not_related')}
             onSend={() => askToSend(selected)}
@@ -185,7 +224,10 @@ const ReleaseDetail = ({ versionId, onBack }) => {
     <Stack space="space.300" grow="fill">
       {back}
       <Stack space="space.100" grow="fill">
-        <Heading as="h2" size="medium">{`Release ${release.name}`}</Heading>
+        <Inline space="space.200" alignBlock="center">
+          <Heading as="h2" size="medium">{`Release ${release.name}`}</Heading>
+          <LoadingButton isLoading={rescanning} isDisabled={busy && !rescanning} onClick={rescan}>Rescan</LoadingButton>
+        </Inline>
         <Text color="color.text.subtle">
           {`${plural(release.bugCount, 'bug fixed', 'bugs fixed')} · ${plural(release.total, 'customer matched', 'customers matched')}`}
         </Text>

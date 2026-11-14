@@ -70,13 +70,19 @@ export function buildMatches({ versionId, releaseName, bugIssues, requests, jsmK
 }
 
 // Steps 7 + 8 for one match. Returns the record to save, or null to leave the stored one alone.
-// A saved draft (template, edited or rovo) is kept; a new match or a waiting one with no draft gets a template draft.
+// - sent, skipped, not_related: untouched.
+// - new match, or "waiting" with no real draft (saved before drafts existed): template draft, status drafted.
+// - anything else (drafted, or waiting with a draft): keep its status, draft and draftSource (edited/rovo too);
+//   only the Jira fields (summary, bug, score, reasons, customer) are refreshed.
+const templated = (fresh, settings) => ({
+  ...fresh, status: 'drafted', draft: templateDraft(fresh, settings), draftSource: 'template', sentAt: null,
+});
+
 export function mergeMatch(existing, fresh, settings) {
-  if (existing && PROTECTED.has(existing.status)) return null;
-  if (existing?.draft) {
-    return { ...fresh, status: existing.status, draft: existing.draft, draftSource: existing.draftSource ?? null, sentAt: null };
-  }
-  return { ...fresh, status: 'drafted', draft: templateDraft(fresh, settings), draftSource: 'template', sentAt: null };
+  if (!existing) return templated(fresh, settings);
+  if (PROTECTED.has(existing.status)) return null;
+  if (existing.status === 'waiting' && !String(existing.draft ?? '').trim()) return templated(fresh, settings);
+  return { ...fresh, status: existing.status, draft: existing.draft ?? null, draftSource: existing.draftSource ?? null, sentAt: null };
 }
 
 export async function findMatches(versionId, { asUser = false } = {}) {

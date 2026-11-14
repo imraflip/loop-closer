@@ -97,9 +97,42 @@ describe('updateMatch', () => {
     expect(stored().status).toBe('sent');
     kv.set('match:1:HELP-1', match());
     expect((await updateMatch({ versionId: '1', requestKey: 'HELP-1', status: 'sent' })).ok).toBe(false);
-    expect((await updateMatch({ versionId: '1', requestKey: 'HELP-1', draft: '   ' })).ok).toBe(false);
     expect((await updateMatch({ versionId: '1', requestKey: 'help 1' })).ok).toBe(false);
     expect((await updateMatch({ versionId: '1:x', requestKey: 'HELP-1' })).ok).toBe(false);
+  });
+
+  test('clearing the draft saves it as waiting with no draft, and recounts', async () => {
+    kv.set('match:1:HELP-1', match({ draft: 'hhhhhhh', draftSource: 'edited' }));
+    for (const draft of ['', '   \n ']) {
+      const res = await updateMatch({ versionId: '1', requestKey: 'HELP-1', draft });
+      expect(res.ok).toBe(true);
+      expect(stored()).toMatchObject({ status: 'waiting', draft: null, draftSource: null });
+    }
+    expect(kv.get('release:1').counts).toMatchObject({ waiting: 1, drafted: 0 });
+    expect((await sendReply({ versionId: '1', requestKey: 'HELP-1' })).message).toBe('Not sent: the reply is empty');
+  });
+
+  test('resetDraft replaces an edited draft with the template for the current tone', async () => {
+    kv.set('match:1:HELP-1', match({ draft: 'hhhhhhh', draftSource: 'edited' }));
+    let res = await updateMatch({ versionId: '1', requestKey: 'HELP-1', resetDraft: true });
+    expect(res.ok).toBe(true);
+    expect(stored()).toMatchObject({ status: 'drafted', draftSource: 'template' });
+    expect(stored().draft).toMatch(/^Hi Ana,\n\nGood news: the problem you told us about, "PDF never finishes"/);
+    expect(stored().draft).toContain('{agentFirstName}');
+
+    kv.set('settings', { ...SETTINGS, tone: 'formal' });
+    kv.set('match:1:HELP-1', match({ status: 'waiting', draft: null, draftSource: null }));
+    res = await updateMatch({ versionId: '1', requestKey: 'HELP-1', resetDraft: true });
+    expect(stored().draft).toMatch(/^Dear Ana,/);
+    expect(kv.get('release:1').counts).toMatchObject({ drafted: 1, waiting: 0 });
+  });
+
+  test('resetDraft is refused for sent, skipped and not related matches', async () => {
+    for (const status of ['sent', 'skipped', 'not_related']) {
+      kv.set('match:1:HELP-1', match({ status, draft: 'kept' }));
+      expect((await updateMatch({ versionId: '1', requestKey: 'HELP-1', resetDraft: true })).ok).toBe(false);
+      expect(stored().draft).toBe('kept');
+    }
   });
 
   test('trims a long draft to 1500 characters', async () => {
@@ -220,6 +253,56 @@ describe('rescanRelease', () => {
     const res = await rescanRelease({ versionId: '7' });
     expect(kv.get('match:7:HELP-7').status).toBe('sent');
     expect(res.data).toMatchObject({ sent: 1, waiting: 0 });
+  });
+
+  test('fills the draft of a waiting match that has none (saved before drafts existed)', async () => {
+    jira.handle = scanJira([bug]);
+    kv.set('match:7:HELP-7', { requestKey: 'HELP-7', versionId: '7', status: 'waiting', draft: null, draftSource: null, sentAt: null });
+    kv.set('release:7', { versionId: '7', name: '2.5', bugKeys: ['LOOP-9'], counts: { waiting: 1 } });
+    const res = await rescanRelease({ versionId: '7' });
+    expect(kv.get('match:7:HELP-7')).toMatchObject({ status: 'drafted', draftSource: 'template' });
+    expect(kv.get('match:7:HELP-7').draft).toMatch(/^Hi Gita,/);
+    expect(kv.get('release:7').counts).toMatchObject({ waiting: 0, drafted: 1 });
+    expect(res.data).toMatchObject({ waiting: 1, total: 1 });
+  });
+
+  test('leaves a sent match and an edited draft unchanged', async () => {
+    const other = { ...request, key: 'HELP-8', fields: { ...request.fields, summary: 'Search on mobile is slow' } };
+    const twoLinks = { ...bug, fields: { ...bug.fields, issuelinks: [{ outwardIssue: { key: 'HELP-7' } }, { outwardIssue: { key: 'HELP-8' } }] } };
+    jira.handle = (method, path, body) =>
+      method === 'POST' && path === '/rest/api/3/search/jql' && !body.jql.includes('fixVersion')
+        ? { json: { issues: [request, other], isLast: true } }
+        : scanJira([twoLinks])(method, path, body);
+    const sent = { requestKey: 'HELP-7', versionId: '7', status: 'sent', draft: 'Hi Gita, sent text', draftSource: 'template', sentAt: '2026-11-12T00:00:00.000Z' };
+    const edited = { requestKey: 'HELP-8', versionId: '7', status: 'drafted', draft: 'My own careful words', draftSource: 'edited', sentAt: null };
+    kv.set('match:7:HELP-7', sent);
+    kv.set('match:7:HELP-8', edited);
+    await rescanRelease({ versionId: '7' });
+    expect(kv.get('match:7:HELP-7')).toEqual(sent);
+    expect(kv.get('match:7:HELP-8')).toMatchObject({ status: 'drafted', draft: 'My own careful words', draftSource: 'edited' });
+    expect(kv.get('release:7').counts).toMatchObject({ sent: 1, drafted: 1 });
+  });
+
+  test('a cleared edited draft gets a fresh template on rescan', async () => {
+    jira.handle = scanJira([bug]);
+    await rescanRelease({ versionId: '7' });
+    await updateMatch({ versionId: '7', requestKey: 'HELP-7', draft: 'hhhhhhh' });
+    await rescanRelease({ versionId: '7' });
+    expect(kv.get('match:7:HELP-7')).toMatchObject({ draft: 'hhhhhhh', draftSource: 'edited' }); // edits are kept
+    await updateMatch({ versionId: '7', requestKey: 'HELP-7', draft: '' });
+    await rescanRelease({ versionId: '7' });
+    expect(kv.get('match:7:HELP-7')).toMatchObject({ status: 'drafted', draftSource: 'template' });
+    expect(kv.get('match:7:HELP-7').draft).toMatch(/^Hi Gita,/);
+  });
+
+  test('scanning twice creates no duplicate matches', async () => {
+    jira.handle = scanJira([bug]);
+    await rescanRelease({ versionId: '7' });
+    const keysAfterFirst = [...kv.keys()].filter((k) => k.startsWith('match:7:')).sort();
+    const res = await rescanRelease({ versionId: '7' });
+    expect([...kv.keys()].filter((k) => k.startsWith('match:7:')).sort()).toEqual(keysAfterFirst);
+    expect(keysAfterFirst).toEqual(['match:7:HELP-7']);
+    expect(res.data.total).toBe(1);
   });
 
   test('no fixed bugs: clear message and nothing saved', async () => {

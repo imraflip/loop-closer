@@ -12,9 +12,13 @@ import { SOURCE_LABEL, canSend, changeText, draftBoxKey, draftParagraphs, shared
 // The TextArea is uncontrolled: `defaultValue` sets the text once per mount and the box owns it while typing.
 // A controlled `value` goes through the async UI Kit bridge on every keystroke, and the host field
 // resets to the last value it was given, so typed and pasted text never sticks.
-const MatchPanel = ({ match, releaseName, editable, draft, edited, busy, onDraftChange, onSkip, onNotRelated, onSend }) => {
+// `boxRevision` changes after "Use template" so the uncontrolled box remounts even if the saved text is unchanged.
+const MatchPanel = ({
+  match, releaseName, editable, draft, edited, busy, boxRevision = 0, onDraftChange, onUseTemplate, onSkip, onNotRelated, onSend,
+}) => {
   const words = sharedWords(match);
   const source = edited ? 'edited' : match.draftSource;
+  const showUseTemplate = editable && (source === 'edited' || source === 'rovo' || !draft.trim());
   const sentLabel = match.status === 'sent' && match.sentAt ? `Sent ${match.sentAt.slice(0, 10)}` : null;
   const draftId = `draft-${match.requestKey}`;
   return (
@@ -51,10 +55,13 @@ const MatchPanel = ({ match, releaseName, editable, draft, edited, busy, onDraft
           {editable ? <Label labelFor={draftId}>Reply to customer</Label> : <Text weight="semibold">Reply to customer</Text>}
           {source ? <Lozenge>{SOURCE_LABEL[source] || source}</Lozenge> : null}
           {sentLabel ? <Lozenge appearance="success">{sentLabel}</Lozenge> : null}
+          {showUseTemplate ? (
+            <Button appearance="subtle" spacing="compact" onClick={onUseTemplate} isDisabled={busy}>Use template</Button>
+          ) : null}
         </Inline>
         {editable ? (
           <TextArea
-            key={draftBoxKey(match)}
+            key={`${draftBoxKey(match)}|${boxRevision}`}
             id={draftId}
             defaultValue={draft}
             maxLength={MAX_DRAFT_CHARS}

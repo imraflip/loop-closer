@@ -5,7 +5,7 @@ import {
 import { getProjectVersions, getMyDisplayName } from '../lib/jira.js';
 import { getRequestStatus, addPublicComment, resolveRequest, checkRequestKey } from '../lib/jsm.js';
 import { NOT_CONFIGURED, scanRelease } from '../lib/scan.js';
-import { firstWord, fillAgentName, MAX_DRAFT_CHARS } from '../lib/drafts.js';
+import { firstWord, fillAgentName, templateDraft, MAX_DRAFT_CHARS } from '../lib/drafts.js';
 
 const fail = (err) => ({ ok: false, message: err?.message || String(err) });
 
@@ -139,14 +139,26 @@ export async function updateMatch(payload) {
     if (match.status === 'sent') return { ok: false, message: `${match.requestKey} was already sent and cannot be changed` };
 
     const next = { ...match };
-    if (payload.draft !== undefined) {
+    if (payload.resetDraft) {
+      // "Use template": replace the draft with the template for the current tone (Waiting tab only).
+      if (!SENDABLE.has(match.status)) return { ok: false, message: `${match.requestKey} is not waiting, so its reply cannot be reset` };
+      next.draft = templateDraft(match, await readSettings());
+      next.draftSource = 'template';
+      next.status = 'drafted';
+    } else if (payload.draft !== undefined) {
       const draft = String(payload.draft ?? '').trim().slice(0, MAX_DRAFT_CHARS);
-      if (!draft) return { ok: false, message: 'The reply cannot be empty' };
-      if (draft !== match.draft) {
-        next.draft = draft;
-        next.draftSource = 'edited';
+      if (!draft) {
+        // Cleared box = "no draft yet": back to waiting, so the next rescan gives it a fresh template draft.
+        next.draft = null;
+        next.draftSource = null;
+        if (next.status === 'drafted') next.status = 'waiting';
+      } else {
+        if (draft !== match.draft) {
+          next.draft = draft;
+          next.draftSource = 'edited';
+        }
+        if (next.status === 'waiting') next.status = 'drafted';
       }
-      if (next.status === 'waiting') next.status = 'drafted';
     }
     if (payload.status !== undefined) {
       if (!SETTABLE_STATUSES.has(payload.status)) return { ok: false, message: `Status must be skipped, not_related or drafted` };
