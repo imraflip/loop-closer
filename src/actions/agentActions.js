@@ -2,8 +2,8 @@
 // inputs are on the payload by input name. KVS only: no Jira calls, no outside calls.
 // Every handler returns { ok: true, data } or { ok: false, message }.
 // Never return customer emails or account ids.
-import { listReleases, listMatches, getMatch, getSettings, countStatuses } from '../lib/store.js';
-import { firstWord } from '../lib/drafts.js';
+import { listReleases, listMatches, getMatch, saveMatch, refreshCounts, getSettings, countStatuses } from '../lib/store.js';
+import { firstWord, wordCount, MAX_WORDS, MAX_DRAFT_CHARS } from '../lib/drafts.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WAITING_STATUSES = new Set(['waiting', 'drafted']); // not told yet
@@ -118,8 +118,24 @@ export function getReleaseMatches(payload) {
   });
 }
 
+// A request can match more than one release: the newest waiting/drafted match wins,
+// else the newest match of any status. null when the request is in no scanned release.
+async function findMatchForRequest(requestKey) {
+  const releases = [...(await listReleases())].sort(byReleasedAt).reverse();
+  let found = null;
+  for (const release of releases) {
+    const match = await getMatch(release.versionId, requestKey);
+    if (!match) continue;
+    if (WAITING_STATUSES.has(match.status)) return { match, release };
+    found ??= { match, release };
+  }
+  return found;
+}
+
+const notMatched = (requestKey) =>
+  `${requestKey} is not matched to any scanned release. Scan the release in the Release Inbox first.`;
+
 // get-draft-context: what the agent needs to write one reply.
-// A request can match more than one release: prefer the newest unsent match.
 export function getDraftContext(payload) {
   return safely('getDraftContext', async () => {
     const requestKey = inputText(payload, 'requestKey').toUpperCase();
@@ -127,19 +143,9 @@ export function getDraftContext(payload) {
       return { ok: false, message: 'Please give a service desk request key, for example HELP-5.' };
     }
 
-    const releases = [...(await listReleases())].sort(byReleasedAt).reverse();
-    let found = null;
-    for (const release of releases) {
-      const match = await getMatch(release.versionId, requestKey);
-      if (!match) continue;
-      if (!found) found = { match, release };
-      if (WAITING_STATUSES.has(match.status)) {
-        found = { match, release };
-        break;
-      }
-    }
+    const found = await findMatchForRequest(requestKey);
     if (!found) {
-      return { ok: false, message: `${requestKey} is not matched to any scanned release. Scan the release in the Release Inbox first.` };
+      return { ok: false, message: notMatched(requestKey) };
     }
 
     const { match, release } = found;
@@ -180,7 +186,44 @@ export function getLoopStatus(payload) {
   });
 }
 
-// save-reply-draft: next task (feat(agent): save improved drafts).
-export async function saveReplyDraft() {
-  return { ok: false, message: 'Saving drafts is not built yet.' };
+// save-reply-draft: saves the agent's draft for a person to review. Never sends anything:
+// only sendReply (a user click in the inbox) posts to the customer.
+export function saveReplyDraft(payload) {
+  return safely('saveReplyDraft', async () => {
+    const requestKey = inputText(payload, 'requestKey').toUpperCase();
+    if (!REQUEST_KEY_RE.test(requestKey)) {
+      return { ok: false, message: 'Please give a service desk request key, for example HELP-5.' };
+    }
+
+    const check = checkRovoDraft(inputText(payload, 'draftText'));
+    if (!check.ok) return check;
+
+    const found = await findMatchForRequest(requestKey);
+    if (!found) return { ok: false, message: notMatched(requestKey) };
+
+    const { match } = found;
+    if (!WAITING_STATUSES.has(match.status)) {
+      return { ok: false, message: `${requestKey} is ${STATUS_WORDS[match.status] ?? match.status}, so the draft was not saved.` };
+    }
+
+    await saveMatch({ ...match, draft: check.data, draftSource: 'rovo', status: 'drafted' });
+    if (match.status !== 'drafted') await refreshCounts(match.versionId);
+    return {
+      ok: true,
+      data: { requestKey, saved: true, message: 'Draft saved. Review and send it in the Release Inbox.' },
+    };
+  });
+}
+
+const STATUS_WORDS = { sent: 'already sent', skipped: 'skipped', not_related: 'marked not related' };
+
+// Draft text rules for the agent: not empty, at most MAX_WORDS words, cut to MAX_DRAFT_CHARS.
+export function checkRovoDraft(text) {
+  const draft = String(text ?? '').trim();
+  if (!draft) return { ok: false, message: 'The draft is empty.' };
+  const words = wordCount(draft);
+  if (words > MAX_WORDS) {
+    return { ok: false, message: `The draft has ${words} words. Keep it under ${MAX_WORDS} words and try again.` };
+  }
+  return { ok: true, data: draft.slice(0, MAX_DRAFT_CHARS) };
 }

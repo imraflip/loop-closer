@@ -4,6 +4,7 @@ const kv = new Map();
 vi.mock('@forge/kvs', () => ({
   kvs: {
     get: async (key) => kv.get(key),
+    set: async (key, value) => void kv.set(key, value),
     query: () => {
       let prefix = '';
       const q = {
@@ -19,9 +20,12 @@ vi.mock('@forge/kvs', () => ({
   },
   WhereConditions: { beginsWith: (p) => p },
 }));
+const requestJira = vi.fn();
+vi.mock('@forge/api', () => ({ default: { asUser: () => ({ requestJira }), asApp: () => ({ requestJira }) }, route: String.raw }));
 
 const actions = await import('../src/actions/agentActions.js');
-const { getWaitingCustomers, getReleaseMatches, getDraftContext, getLoopStatus, findRelease, daysWaiting, hideEmails, customerFirstName } = actions;
+const { getWaitingCustomers, getReleaseMatches, getDraftContext, getLoopStatus, saveReplyDraft, findRelease, daysWaiting, hideEmails, customerFirstName } =
+  actions;
 
 const putRelease = (versionId, name, releasedAt) => kv.set(`release:${versionId}`, { versionId, name, releasedAt });
 const putMatch = (versionId, releaseName, requestKey, fields) =>
@@ -174,5 +178,45 @@ describe('getLoopStatus', () => {
     expect((await getLoopStatus({}, {})).data.release).toBe('2.4');
     kv.clear();
     expect(await getLoopStatus({}, {})).toEqual({ ok: false, message: 'No releases have been scanned yet.' });
+  });
+});
+
+describe('saveReplyDraft', () => {
+  const draftOf = (n) => Array.from({ length: n }, (_, i) => `w${i}`).join(' ');
+
+  test('word limit: 120 words saves, 121 words is rejected and nothing changes', async () => {
+    const before = kv.get('match:200:HELP-5');
+    const tooLong = await saveReplyDraft({ requestKey: 'HELP-5', draftText: draftOf(121) }, {});
+    expect(tooLong.ok).toBe(false);
+    expect(tooLong.message).toMatch(/121 words/);
+    expect(kv.get('match:200:HELP-5')).toBe(before);
+
+    expect((await saveReplyDraft({ requestKey: 'HELP-5', draftText: draftOf(120) }, {})).ok).toBe(true);
+  });
+
+  test.each([
+    ['sent', 'HELP-3'],
+    ['not_related', 'HELP-11'],
+    ['skipped', 'HELP-12'],
+  ])('status check: a %s match is rejected', async (status, key) => {
+    if (status === 'skipped') putMatch('200', '2.4', key, { status });
+    const before = kv.get(`match:200:${key}`);
+    const result = await saveReplyDraft({ requestKey: key, draftText: 'Hi Chen, fixed.' }, {});
+    expect(result.ok).toBe(false);
+    expect(result.message).toMatch(/not saved/);
+    expect(kv.get(`match:200:${key}`)).toBe(before);
+  });
+
+  test('source label: saves the draft with draftSource rovo, status drafted, fresh counts, no Jira call', async () => {
+    const result = await saveReplyDraft({ requestKey: 'help-5', draftText: '  Hi Eko, the PDF export works again in 2.4.  ' }, {});
+    expect(result).toEqual({ ok: true, data: { requestKey: 'HELP-5', saved: true, message: 'Draft saved. Review and send it in the Release Inbox.' } });
+    expect(kv.get('match:200:HELP-5')).toMatchObject({ draft: 'Hi Eko, the PDF export works again in 2.4.', draftSource: 'rovo', status: 'drafted' });
+    expect(kv.get('release:200').counts).toEqual({ waiting: 0, drafted: 2, sent: 1, skipped: 0, notRelated: 1 });
+    expect(requestJira).not.toHaveBeenCalled();
+  });
+
+  test('empty text or unknown request is rejected', async () => {
+    expect((await saveReplyDraft({ requestKey: 'HELP-5', draftText: '   ' }, {})).ok).toBe(false);
+    expect((await saveReplyDraft({ requestKey: 'HELP-99', draftText: 'Hi' }, {})).message).toMatch(/not matched/);
   });
 });
