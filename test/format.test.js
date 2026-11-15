@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { canImproveWithRovo, pinFirst, canSend, changeText, draftBoxKey, draftParagraphs, improvePrompt, rovoOpenPayload, sentLabel, sharedWords } from '../src/frontend/components/format.js';
+import { canImproveWithRovo, pinFirst, testResultText, canSend, changeText, draftBoxKey, draftParagraphs, improvePrompt, rovoOpenPayload, sentLabel, sharedWords } from '../src/frontend/components/format.js';
 
 describe('changeText (reply box onChange)', () => {
   test('reads the text from an event or a plain string', () => {
@@ -140,5 +140,13 @@ describe('pinFirst (customer opened from Still waiting goes to the top)', () => 
   test('does not change the original list', () => {
     pinFirst(list, 'HELP-3');
     expect(keys(list)).toEqual(['HELP-1', 'HELP-2', 'HELP-3']);
+  });
+});
+
+describe('testResultText (Settings: Test on a release)', () => {
+  test('plain words with the linked count', () => {
+    expect(testResultText({ count: 10, linked: 4 })).toBe('This release would match 10 customers (4 linked).');
+    expect(testResultText({ count: 1, linked: 1 })).toBe('This release would match 1 customer (1 linked).');
+    expect(testResultText({ count: 0, linked: 0 })).toBe('This release would match 0 customers (0 linked).');
   });
 });

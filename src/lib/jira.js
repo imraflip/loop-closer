@@ -1,4 +1,4 @@
-// Jira REST helpers (searchJql, getVersion, getProjectVersions, getFixedBugs, getOpenRequests) and adfToText().
+// Jira REST helpers (searchJql, getVersion, getProjects, getProjectVersions, getFixedBugs, getOpenRequests) and adfToText().
 import api, { route } from '@forge/api';
 
 const PAGE_SIZE = 100;
@@ -50,6 +50,27 @@ export async function getVersion(versionId, { asUser = false } = {}) {
     headers: { Accept: 'application/json' },
   });
   return readJson(res, 'Get version');
+}
+
+const MAX_PROJECTS = 500;
+
+// Projects of one type the caller can see: typeKey "software" or "service_desk". [{ key, name }], sorted by name.
+export async function getProjects(typeKey, { asUser = false } = {}) {
+  if (!['software', 'service_desk'].includes(typeKey)) throw new Error(`Bad project type: ${typeKey}`);
+  const projects = [];
+  let startAt = 0;
+  for (;;) {
+    const res = await jira(asUser).requestJira(
+      route`/rest/api/3/project/search?typeKey=${typeKey}&startAt=${startAt}&maxResults=${50}`,
+      { headers: { Accept: 'application/json' } },
+    );
+    const page = await readJson(res, 'Get projects');
+    const values = page.values || [];
+    projects.push(...values.map((p) => ({ key: p.key, name: p.name })));
+    startAt += values.length;
+    if (page.isLast !== false || values.length === 0 || projects.length >= MAX_PROJECTS) break;
+  }
+  return projects.slice(0, MAX_PROJECTS).sort((a, b) => String(a.name).localeCompare(String(b.name)));
 }
 
 // All versions of a project (not paginated).

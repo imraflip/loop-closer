@@ -77,7 +77,7 @@ UI Kit components used: `Heading`, `Text`, `Stack`, `Inline`, `Box`, `Lozenge`, 
 | Match strictness | Select: Loose 0.12, Normal 0.19, Strict 0.30 | Normal | Higher means fewer, surer matches |
 | Look back | Select: 90, 180, 365 days | 180 | How old a request can be to match |
 
-- **Buttons:** Save settings | Test on a release (shows "This would match N requests" without saving).
+- **Buttons:** Save settings | Test on a release: pick any released version of the chosen Jira project (scanned or not); runs with the settings on the form and shows "This release would match 10 customers (4 linked)." without saving.
 
 ## Reply templates (`src/lib/drafts.js`)
 

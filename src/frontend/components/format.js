@@ -25,6 +25,10 @@ export function pinFirst(list, requestKey) {
   return i <= 0 ? list : [list[i], ...list.slice(0, i), ...list.slice(i + 1)];
 }
 
+// Settings page "Test on a release" result: "This release would match 10 customers (4 linked)."
+export const testResultText = ({ count, linked }) =>
+  `This release would match ${plural(count, 'customer', 'customers')} (${linked} linked).`;
+
 export function cut(text, max) {
   const s = String(text ?? '');
   return s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s;

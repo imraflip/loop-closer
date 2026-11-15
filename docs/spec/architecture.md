@@ -303,9 +303,9 @@ All run as the current user. All return `{ ok, data }` or `{ ok: false, message 
 | `saveSettings` | settings object | saved settings | KVS only |
 | `listProjects` | none | `{ software: [{key, name}], service: [{key, name}] }` | `GET /rest/api/3/project/search?typeKey=software` and `?typeKey=service_desk` |
 | `getReleases` | none | `[{ versionId, name, releasedAt, bugCount, waiting, sent }]`, newest first | KVS only |
-| `listReleasedVersions` | none | released versions of the Jira project not scanned yet: `[{ id, name, releaseDate }]` | `GET /rest/api/3/project/{key}/versions` |
+| `listReleasedVersions` | none, or `{ jiraProjectKey, includeScanned: true }` from Settings | released versions of the Jira project not scanned yet (all released ones with `includeScanned`): `[{ id, name, releaseDate }]` | `GET /rest/api/3/project/{key}/versions` |
 | `rescanRelease` | `{ versionId }` | release record | runs `scanRelease` |
-| `testMatching` | `{ versionId }` | `{ count }`, saves nothing | runs scan steps 1 to 6 only |
+| `testMatching` | `{ versionId, settings }` (the form, checked like `saveSettings`) | `{ count, linked }`, saves nothing | runs scan steps 1 to 6 only, with those settings |
 | `getMatches` | \`{ versionId, tab: "waiting" | "sent" | "other" }\` |
 | `updateMatch` | `{ versionId, requestKey, draft?, status? }` (status only `skipped`, `not_related`, `drafted`) | updated match | KVS only |
 | `sendReply` | `{ versionId, requestKey }` | updated match with `status: "sent"` | comment API, then transition API if `autoResolve` |

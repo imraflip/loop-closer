@@ -85,10 +85,11 @@ export function mergeMatch(existing, fresh, settings) {
   return { ...fresh, status: existing.status, draft: existing.draft ?? null, draftSource: existing.draftSource ?? null, sentAt: null };
 }
 
-export async function findMatches(versionId, { asUser = false } = {}) {
+// `settings` (optional): use these instead of the saved ones (Settings page "Test on a release", nothing saved).
+export async function findMatches(versionId, { asUser = false, settings: override = null } = {}) {
   try {
     // 1. settings
-    const settings = await getSettings();
+    const settings = override ?? (await getSettings());
     if (!settings?.jiraProjectKey || !settings?.jsmProjectKey) {
       console.log(NOT_CONFIGURED);
       return { ok: false, message: NOT_CONFIGURED };

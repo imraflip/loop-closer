@@ -1,10 +1,10 @@
 // UI resolvers. All run as the current user and return { ok: true, data } or { ok: false, message }.
 import {
-  getSettings as readSettings, listReleases, getRelease, listMatches, countStatuses, getMatch, saveMatch, refreshCounts,
+  getSettings as readSettings, saveSettings as writeSettings, checkSettings, listReleases, getRelease, listMatches, countStatuses, getMatch, saveMatch, refreshCounts,
 } from '../lib/store.js';
-import { getProjectVersions, getMyDisplayName } from '../lib/jira.js';
+import { getProjects, getProjectVersions, getMyDisplayName } from '../lib/jira.js';
 import { getRequestStatus, addPublicComment, resolveRequest, checkRequestKey } from '../lib/jsm.js';
-import { NOT_CONFIGURED, scanRelease } from '../lib/scan.js';
+import { NOT_CONFIGURED, scanRelease, findMatches } from '../lib/scan.js';
 import { reasonWordsFor } from '../lib/match.js';
 import { firstWord, fillAgentName, hasReplyText, templateDraft, MAX_DRAFT_CHARS } from '../lib/drafts.js';
 import { daysWaiting, customerFirstName, hideEmails } from '../actions/agentActions.js';
@@ -24,6 +24,46 @@ async function myDisplayName() {
 export async function getSettings() {
   try {
     return { ok: true, data: (await readSettings()) ?? null };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+// Settings page "Save settings": checks the fields (design.md Screen 4), then saves them.
+export async function saveSettings(payload) {
+  try {
+    const checked = checkSettings(payload);
+    if (!checked.ok) return checked;
+    return { ok: true, data: await writeSettings(checked.data) };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+// Software and service desk projects the current user can see, for the two project Selects.
+export async function listProjects() {
+  try {
+    const [software, service] = await Promise.all([
+      getProjects('software', { asUser: true }),
+      getProjects('service_desk', { asUser: true }),
+    ]);
+    return { ok: true, data: { software, service } };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+// Settings page "Test on a release": scan steps 1 to 6 with the settings on the form (checked, not saved).
+// Saves nothing. data: { count, linked }.
+export async function testMatching(payload) {
+  try {
+    const versionId = checkVersionId(payload?.versionId);
+    const checked = checkSettings(payload?.settings);
+    if (!checked.ok) return checked;
+    const res = await findMatches(versionId, { asUser: true, settings: checked.data });
+    if (!res.ok) return res;
+    const { matches } = res.data;
+    return { ok: true, data: { count: matches.length, linked: matches.filter((m) => m.linked).length } };
   } catch (err) {
     return fail(err);
   }
@@ -59,13 +99,15 @@ export async function getReleases() {
 }
 
 // Released, not archived versions of the Jira project that have no release record yet.
-export async function listReleasedVersions() {
+// Settings page: { jiraProjectKey, includeScanned: true } lists every released version of the project chosen on the form.
+export async function listReleasedVersions(payload = {}) {
   try {
-    const settings = await readSettings();
-    if (!settings?.jiraProjectKey) return { ok: false, message: NOT_CONFIGURED };
+    const projectKey = payload?.jiraProjectKey || (await readSettings())?.jiraProjectKey;
+    if (!projectKey) return { ok: false, message: NOT_CONFIGURED };
+    const includeScanned = payload?.includeScanned === true;
     const [versions, releases] = await Promise.all([
-      getProjectVersions(settings.jiraProjectKey, { asUser: true }),
-      listReleases(),
+      getProjectVersions(projectKey, { asUser: true }),
+      includeScanned ? [] : listReleases(),
     ]);
     const scanned = new Set(releases.map((r) => String(r.versionId)));
     const data = versions
@@ -312,8 +354,11 @@ export async function getStillWaiting() {
 
 export function defineResolvers(resolver) {
   resolver.define('getSettings', getSettings);
+  resolver.define('saveSettings', ({ payload }) => saveSettings(payload));
+  resolver.define('listProjects', listProjects);
+  resolver.define('testMatching', ({ payload }) => testMatching(payload));
   resolver.define('getReleases', getReleases);
-  resolver.define('listReleasedVersions', listReleasedVersions);
+  resolver.define('listReleasedVersions', ({ payload }) => listReleasedVersions(payload));
   resolver.define('getMatches', ({ payload }) => getMatches(payload));
   resolver.define('getMatch', ({ payload }) => getOneMatch(payload));
   resolver.define('updateMatch', ({ payload }) => updateMatch(payload));

@@ -40,17 +40,48 @@ export const SETTINGS_DEFAULTS = {
   lookbackDays: 180,
 };
 
+// Settings page choices (design.md Screen 4). Match strictness: Loose 0.12, Normal 0.19, Strict 0.30.
+export const THRESHOLDS = [0.12, 0.19, 0.3];
+export const LOOKBACK_CHOICES = [90, 180, 365];
+export const TONES = ['friendly', 'formal'];
+const PROJECT_KEY_RE = /^[A-Z][A-Z0-9_]*$/;
+const MAX_STATUS_NAME = 100;
+
+// Settings from the Settings page -> a clean settings object, or the first problem in plain words.
+// Only the known fields are kept; missing optional fields get the defaults.
+export function checkSettings(input) {
+  const s = input && typeof input === 'object' ? input : {};
+  const bad = (message) => ({ ok: false, message });
+  const jiraProjectKey = String(s.jiraProjectKey ?? '').trim();
+  const jsmProjectKey = String(s.jsmProjectKey ?? '').trim();
+  if (!PROJECT_KEY_RE.test(jiraProjectKey)) return bad('Choose the Jira project with the fixes');
+  if (!PROJECT_KEY_RE.test(jsmProjectKey)) return bad('Choose the service desk project');
+
+  const tone = s.tone ?? SETTINGS_DEFAULTS.tone;
+  if (!TONES.includes(tone)) return bad('Reply tone must be Friendly or Formal');
+  const threshold = s.threshold === undefined ? SETTINGS_DEFAULTS.threshold : Number(s.threshold);
+  if (!THRESHOLDS.includes(threshold)) return bad('Match strictness must be Loose, Normal or Strict');
+  const lookbackDays = s.lookbackDays === undefined ? SETTINGS_DEFAULTS.lookbackDays : Number(s.lookbackDays);
+  if (!LOOKBACK_CHOICES.includes(lookbackDays)) return bad('Look back must be 90, 180 or 365 days');
+
+  const autoResolve = s.autoResolve === true;
+  const statusName = String(s.resolveStatusName ?? '').trim();
+  if (statusName.length > MAX_STATUS_NAME) return bad(`Resolve status name must be under ${MAX_STATUS_NAME} characters`);
+  if (autoResolve && !statusName) return bad('Enter a resolve status name, or turn off Resolve request after sending');
+  const resolveStatusName = statusName || SETTINGS_DEFAULTS.resolveStatusName;
+
+  return { ok: true, data: { jiraProjectKey, jsmProjectKey, tone, autoResolve, resolveStatusName, threshold, lookbackDays } };
+}
+
+// Saved settings, or null until an admin saves the Settings page.
 export async function getSettings() {
-  const stored = await kvs.get(SETTINGS_KEY);
-  if (stored) return stored;
+  return (await kvs.get(SETTINGS_KEY)) ?? null;
+}
 
-  // TEMP Phase 1: no Settings page yet, so fall back to Forge environment variables
-  // (forge variables set LC_JIRA_PROJECT_KEY / LC_JSM_PROJECT_KEY). Remove in Phase 4.
-  const jiraProjectKey = process.env.LC_JIRA_PROJECT_KEY;
-  const jsmProjectKey = process.env.LC_JSM_PROJECT_KEY;
-  if (jiraProjectKey && jsmProjectKey) return { jiraProjectKey, jsmProjectKey, ...SETTINGS_DEFAULTS };
-
-  return null;
+// Saves settings already checked with checkSettings().
+export async function saveSettings(settings) {
+  await kvs.set(SETTINGS_KEY, settings);
+  return settings;
 }
 
 export async function getRelease(versionId) {

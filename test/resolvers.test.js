@@ -54,11 +54,7 @@ describe('getReleases', () => {
 });
 
 describe('listReleasedVersions', () => {
-  beforeEach(() => {
-    kv.clear();
-    vi.stubEnv('LC_JIRA_PROJECT_KEY', '');
-    vi.stubEnv('LC_JSM_PROJECT_KEY', '');
-  });
+  beforeEach(() => kv.clear());
 
   test('not configured', async () => {
     expect(await listReleasedVersions()).toEqual({ ok: false, message: 'Loop Closer is not configured' });
