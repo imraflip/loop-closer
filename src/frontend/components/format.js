@@ -21,7 +21,7 @@ export const percent = (score) => `${Math.round((Number(score) || 0) * 100)}%`;
 
 // Up to 3 shared words for an unlinked match (linked matches only carry "linked to KEY").
 // Reasons are word stems ("logg"); reasonWords maps each to a full word ("logging").
-// Matches saved before reasonWords existed show the stem.
+// The backend rebuilds reasonWords for old matches; a stem shows only when no full word was found.
 export const sharedWords = (match) =>
   match.linked ? [] : (match.reasons || []).slice(0, 3).map((s) => match.reasonWords?.[s] || s);
 

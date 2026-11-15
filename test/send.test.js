@@ -97,6 +97,22 @@ describe('placeholder in the inbox display', () => {
   });
 });
 
+describe('shared words for old matches in the inbox', () => {
+  test('getMatches rebuilds full words for a sent, skipped or not related match with no reasonWords, saving nothing', async () => {
+    const base = { linked: false, score: 0.4, reasons: ['logg', 'setting'], requestSummary: 'Logging settings vanish', bugSummary: 'Logging resets' };
+    kv.set('match:1:HELP-1', match({ ...base, status: 'sent', sentAt: '2026-11-14T10:00:00.000Z' }));
+    kv.set('match:1:HELP-2', match({ ...base, requestKey: 'HELP-2', status: 'skipped' }));
+    kv.set('match:1:HELP-3', match({ ...base, requestKey: 'HELP-3', status: 'not_related' }));
+    const before = structuredClone([...kv]);
+
+    const { tabs } = (await getMatches({ versionId: '1' })).data;
+    for (const m of [...tabs.sent, ...tabs.other]) expect(m.reasonWords).toEqual({ logg: 'logging', setting: 'settings' });
+    expect(tabs.sent).toHaveLength(1);
+    expect(tabs.other).toHaveLength(2);
+    expect([...kv]).toEqual(before); // nothing written, statuses unchanged
+  });
+});
+
 describe('updateMatch', () => {
   test('saves an edited draft as "edited" and recounts nothing when status is unchanged', async () => {
     const res = await updateMatch({ versionId: '1', requestKey: 'HELP-1', draft: '  New text  ' });

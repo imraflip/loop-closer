@@ -5,6 +5,7 @@ import {
 import { getProjectVersions, getMyDisplayName } from '../lib/jira.js';
 import { getRequestStatus, addPublicComment, resolveRequest, checkRequestKey } from '../lib/jsm.js';
 import { NOT_CONFIGURED, scanRelease } from '../lib/scan.js';
+import { reasonWordsFor } from '../lib/match.js';
 import { firstWord, fillAgentName, hasReplyText, templateDraft, MAX_DRAFT_CHARS } from '../lib/drafts.js';
 
 const fail = (err) => ({ ok: false, message: err?.message || String(err) });
@@ -107,7 +108,7 @@ export function matchView(m, agentDisplayName = '') {
     linked: !!m.linked,
     score: Number(m.score) || 0,
     reasons: m.reasons || [],
-    reasonWords: m.reasonWords || {},
+    reasonWords: reasonWordsFor(m),
     customerName: String(m.customerName || '').includes('@') ? firstWord(m.customerName) : m.customerName || 'there',
     requestSummary: m.requestSummary || '',
     status: m.status,

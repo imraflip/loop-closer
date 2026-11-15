@@ -138,6 +138,17 @@ describe('getReleaseMatches', () => {
     expect(reasonWordsOf({ linked: true, reasons: ['linked to LOOP-1'] })).toEqual(['linked to LOOP-1']);
   });
 
+  test('old sent match without reasonWords: full words rebuilt from its summaries, storage untouched', async () => {
+    putMatch('200', '2.4', 'HELP-8', {
+      status: 'sent', reasons: ['logg', 'setting', 'dark'], requestSummary: 'Logging settings lost in dark mode', bugSummary: 'Debug logging',
+    });
+    const before = structuredClone(kv.get('match:200:HELP-8'));
+    const rows = (await getReleaseMatches({ releaseName: '2.4' }, {})).data;
+    expect(rows.find((r) => r.requestKey === 'HELP-8')).toMatchObject({ status: 'sent', reasons: ['logging', 'settings', 'dark'] });
+    expect(kv.get('match:200:HELP-8')).toEqual(before);
+    expect(kv.get('match:200:HELP-8').reasonWords).toBeUndefined();
+  });
+
   test('release name is needed', async () => {
     expect((await getReleaseMatches({}, {})).ok).toBe(false);
   });

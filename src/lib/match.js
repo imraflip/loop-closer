@@ -99,6 +99,16 @@ export function scoreRequest(request, bug, idf) {
   return { score, shared, reasons };
 }
 
+// reasonWords for a stored match, for display only (never saved back). Uses the stored map when there is one;
+// otherwise (matches saved before reasonWords existed, which rescans skip when sent, skipped or not related)
+// rebuilds it from the stored customer summary and bug summary. Descriptions are not stored, so a stem found
+// only there has no entry and the caller shows the stem. Linked matches have no word reasons.
+export function reasonWordsFor(match) {
+  if (match?.reasonWords) return match.reasonWords;
+  if (match?.linked) return {};
+  return originalWords(match?.reasons ?? [], [match?.requestSummary, match?.bugSummary]);
+}
+
 // Each request goes to its single best bug; keep it if it clears the threshold
 // and shares at least minShared tokens.
 export function matchRequests(bugs, requests, { threshold = DEFAULTS.threshold, minShared = DEFAULTS.minShared } = {}) {

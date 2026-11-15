@@ -1,6 +1,6 @@
 // Matcher unit tests (the 8 cases in architecture.md).
 import { describe, test, expect } from 'vitest';
-import { tokenize, buildIdf, scoreRequest, matchRequests, originalWords, DEFAULTS } from '../src/lib/match.js';
+import { tokenize, buildIdf, scoreRequest, matchRequests, originalWords, reasonWordsFor, DEFAULTS } from '../src/lib/match.js';
 import { buildMatches, mergeMatch } from '../src/lib/scan.js';
 import { BUGS, REQUESTS, UNLINKED, byKey, BUG_ISSUES, REQUEST_ISSUES } from './fixtures.js';
 
@@ -155,5 +155,27 @@ describe('original words for display (reasonWords)', () => {
     for (const m of unlinked) {
       for (const s of m.reasons) expect(tokenize(m.reasonWords[s])).toEqual([s]);
     }
+  });
+});
+
+describe('reasonWordsFor (old matches without reasonWords)', () => {
+  const old = () => ({
+    status: 'sent', linked: false, reasons: ['logg', 'setting', 'crash'],
+    requestSummary: 'Logging settings vanish', bugSummary: 'Debug logging resets settings',
+  });
+
+  test('rebuilds full words from the stored summaries; a stem found in neither has no entry', () => {
+    expect(reasonWordsFor(old())).toEqual({ logg: 'logging', setting: 'settings' });
+  });
+
+  test('a stored map is used as it is; linked matches get none', () => {
+    expect(reasonWordsFor({ ...old(), reasonWords: { logg: 'logged' } })).toEqual({ logg: 'logged' });
+    expect(reasonWordsFor({ linked: true, reasons: ['linked to LOOP-1'] })).toEqual({});
+  });
+
+  test('never changes the match it reads', () => {
+    const match = old();
+    reasonWordsFor(match);
+    expect(match).toEqual(old());
   });
 });

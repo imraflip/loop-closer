@@ -4,6 +4,7 @@
 // Never return customer emails or account ids.
 import { listReleases, listMatches, getMatch, saveMatch, refreshCounts, getSettings, countStatuses } from '../lib/store.js';
 import { firstWord, wordCount, MAX_WORDS, MAX_DRAFT_CHARS } from '../lib/drafts.js';
+import { reasonWordsFor } from '../lib/match.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WAITING_STATUSES = new Set(['waiting', 'drafted']); // not told yet
@@ -49,10 +50,12 @@ export function findRelease(releases, releaseName) {
   return list.find((r) => String(r.name ?? '').trim().toLowerCase() === name) ?? null;
 }
 
-// Reasons as full words ("logging", not the stem "logg"); stem when reasonWords is missing (old matches).
+// Reasons as full words ("logging", not the stem "logg"). Old matches without a stored map get one rebuilt
+// from their stored summaries (nothing is saved); the stem shows only if no full word is found.
 // Linked matches keep their "linked to KEY" reason.
 export function reasonWordsOf(match) {
-  return (match.reasons ?? []).map((s) => match.reasonWords?.[s] || s);
+  const words = reasonWordsFor(match);
+  return (match.reasons ?? []).map((s) => words[s] || s);
 }
 
 // One stored match -> the plain row the agent sees.
