@@ -10,7 +10,7 @@ import RefreshButton from './RefreshButton';
 import { watchDraft } from './draftWatch';
 import SendConfirmModal from './SendConfirmModal';
 import { leftColumnStyle, panelStyle, rightColumnStyle } from './styles';
-import { improvePrompt, plural, rovoOpenPayload } from './format';
+import { improvePrompt, pinFirst, plural, rovoOpenPayload } from './format';
 
 const TABS = [
   { key: 'waiting', label: 'Waiting', empty: 'Everyone in this release has been told.' },
@@ -30,10 +30,10 @@ function nextAfter(list, key) {
   return (list[i + 1] || list[i - 1] || null)?.requestKey ?? null;
 }
 
-// Screen 2: Release inbox.
-const ReleaseDetail = ({ versionId, onBack }) => {
+// Screen 2: Release inbox. focusKey (from Still waiting): open with that waiting customer selected, first in the list.
+const ReleaseDetail = ({ versionId, focusKey = null, onBack }) => {
   const [state, setState] = useState({ loading: true, error: null, data: null });
-  const [selectedKeys, setSelectedKeys] = useState({}); // tab key -> selected request key
+  const [selectedKeys, setSelectedKeys] = useState(focusKey ? { waiting: focusKey } : {}); // tab key -> selected request key
   const [edits, setEdits] = useState({}); // request key -> unsaved draft text
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState(null);
@@ -91,7 +91,9 @@ const ReleaseDetail = ({ versionId, onBack }) => {
 
   const { release, tabs } = state.data;
   const told = `${release.sent} of ${release.total} told`;
-  const selectedIn = (tabKey) => tabs[tabKey].find((m) => m.requestKey === selectedKeys[tabKey]) || tabs[tabKey][0] || null;
+  // Rows as shown: the Waiting tab puts the customer opened from Still waiting first.
+  const listOf = (tabKey) => (tabKey === 'waiting' ? pinFirst(tabs.waiting, focusKey) : tabs[tabKey]);
+  const selectedIn = (tabKey) => listOf(tabKey).find((m) => m.requestKey === selectedKeys[tabKey]) || listOf(tabKey)[0] || null;
   const isEdited = (m) => edits[m.requestKey] !== undefined && edits[m.requestKey] !== (m.draft || '');
 
   // Saves an unsaved edit for `m`. Returns false (and shows the error) if saving failed.
@@ -119,7 +121,7 @@ const ReleaseDetail = ({ versionId, onBack }) => {
 
   // After a waiting customer leaves the list, reload and open the next waiting one.
   const moveOn = async (m) => {
-    setSelectedKeys((s) => ({ ...s, waiting: nextAfter(tabs.waiting, m.requestKey) }));
+    setSelectedKeys((s) => ({ ...s, waiting: nextAfter(listOf('waiting'), m.requestKey) }));
     await load();
   };
 
@@ -253,7 +255,7 @@ const ReleaseDetail = ({ versionId, onBack }) => {
   };
 
   const tabBody = (tab) => {
-    const matches = tabs[tab.key];
+    const matches = listOf(tab.key);
     if (matches.length === 0) return <EmptyState header={tab.empty} />;
     const selected = selectedIn(tab.key);
     const editable = tab.key === 'waiting';

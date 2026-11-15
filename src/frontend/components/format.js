@@ -11,6 +11,19 @@ export function daysAgo(date) {
   return days === 0 ? 'today' : `${plural(days, 'day', 'days')} ago`;
 }
 
+// Still waiting: days show red after 7 days (8 or more). Unknown days (null) are never red.
+export const RED_AFTER_DAYS = 7;
+export const waitedTooLong = (days) => typeof days === 'number' && days > RED_AFTER_DAYS;
+
+// "12" or "–" when the release date is unknown.
+export const daysLabel = (days) => (typeof days === 'number' ? String(days) : '–');
+
+// The request opened from Still waiting goes to the top of the list (UI Kit cannot scroll to a row).
+// Others keep their order; an unknown or empty key leaves the list as it is.
+export function pinFirst(list, requestKey) {
+  const i = requestKey ? list.findIndex((m) => m.requestKey === requestKey) : -1;
+  return i <= 0 ? list : [list[i], ...list.slice(0, i), ...list.slice(i + 1)];
+}
 
 export function cut(text, max) {
   const s = String(text ?? '');

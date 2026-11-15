@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { canImproveWithRovo, canSend, changeText, draftBoxKey, draftParagraphs, improvePrompt, rovoOpenPayload, sentLabel, sharedWords } from '../src/frontend/components/format.js';
+import { canImproveWithRovo, pinFirst, canSend, changeText, draftBoxKey, draftParagraphs, improvePrompt, rovoOpenPayload, sentLabel, sharedWords } from '../src/frontend/components/format.js';
 
 describe('changeText (reply box onChange)', () => {
   test('reads the text from an event or a plain string', () => {
@@ -118,5 +118,27 @@ describe('Improve with Rovo', () => {
     expect(rovoOpenPayload({ requestKey: 'HELP-5', status: 'drafted' })).toEqual({
       type: 'forge', agentName: 'Loop Closer', agentKey: 'loop-closer-agent', prompt: 'Improve the reply for HELP-5',
     });
+  });
+});
+
+describe('pinFirst (customer opened from Still waiting goes to the top)', () => {
+  const list = [{ requestKey: 'HELP-1' }, { requestKey: 'HELP-2' }, { requestKey: 'HELP-3' }];
+  const keys = (l) => l.map((m) => m.requestKey);
+
+  test('moves that request first, others keep their order', () => {
+    expect(keys(pinFirst(list, 'HELP-3'))).toEqual(['HELP-3', 'HELP-1', 'HELP-2']);
+    expect(keys(pinFirst(list, 'HELP-2'))).toEqual(['HELP-2', 'HELP-1', 'HELP-3']);
+  });
+
+  test('already first, no key, or not in the list: unchanged', () => {
+    expect(pinFirst(list, 'HELP-1')).toBe(list);
+    expect(pinFirst(list, null)).toBe(list);
+    expect(pinFirst(list, 'HELP-99')).toBe(list);
+    expect(pinFirst([], 'HELP-1')).toEqual([]);
+  });
+
+  test('does not change the original list', () => {
+    pinFirst(list, 'HELP-3');
+    expect(keys(list)).toEqual(['HELP-1', 'HELP-2', 'HELP-3']);
   });
 });

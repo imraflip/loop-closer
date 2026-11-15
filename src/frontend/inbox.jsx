@@ -17,13 +17,16 @@ import ReleaseList from './components/ReleaseList';
 import ReleaseDetail from './components/ReleaseDetail';
 import RefreshButton from './components/RefreshButton';
 import ScanModal from './components/ScanModal';
+import StillWaiting from './components/StillWaiting';
 import { panelStyle } from './components/styles';
 
 const NOT_SET_UP = 'Loop Closer is not set up yet. Ask a Jira admin to choose projects in Loop Closer settings.';
 
 const App = () => {
   const [state, setState] = useState({ loading: true, configured: true, error: null, releases: [] });
-  const [openVersionId, setOpenVersionId] = useState(null); // set -> Screen 2 (Release inbox)
+  // set -> Screen 2 (Release inbox): { versionId, requestKey }; requestKey (from Still waiting) is the customer to show first.
+  const [openRelease, setOpenRelease] = useState(null);
+  const openReleaseAt = (versionId, requestKey = null) => setOpenRelease({ versionId, requestKey });
   const [reloadKey, setReloadKey] = useState(0);
   const [scanOpen, setScanOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false); // "Refresh" keeps the list on show while it reloads
@@ -52,13 +55,13 @@ const App = () => {
     return <SectionMessage appearance="warning"><Text>{NOT_SET_UP}</Text></SectionMessage>;
   }
 
-  if (openVersionId) {
+  if (openRelease) {
     // Back reloads the release list so counts stay fresh once sending works.
     const back = () => {
-      setOpenVersionId(null);
+      setOpenRelease(null);
       setReloadKey((k) => k + 1);
     };
-    return <ReleaseDetail versionId={openVersionId} onBack={back} />;
+    return <ReleaseDetail versionId={openRelease.versionId} focusKey={openRelease.requestKey} onBack={back} />;
   }
 
   // After a scan: close the modal, refresh the release list and show a toast.
@@ -109,13 +112,12 @@ const App = () => {
         </TabList>
         <TabPanel>
           <Box xcss={panelStyle}>
-            <ReleaseList state={state} onOpen={setOpenVersionId} />
+            <ReleaseList state={state} onOpen={(versionId) => openReleaseAt(versionId)} />
           </Box>
         </TabPanel>
         <TabPanel>
           <Box xcss={panelStyle}>
-            {/* Placeholder: Screen 3 is built in Phase 4. */}
-            <Text>Still waiting is coming soon.</Text>
+            <StillWaiting reloadKey={reloadKey} onOpen={openReleaseAt} />
           </Box>
         </TabPanel>
       </Tabs>

@@ -7,6 +7,7 @@ import { getRequestStatus, addPublicComment, resolveRequest, checkRequestKey } f
 import { NOT_CONFIGURED, scanRelease } from '../lib/scan.js';
 import { reasonWordsFor } from '../lib/match.js';
 import { firstWord, fillAgentName, hasReplyText, templateDraft, MAX_DRAFT_CHARS } from '../lib/drafts.js';
+import { daysWaiting, customerFirstName, hideEmails } from '../actions/agentActions.js';
 
 const fail = (err) => ({ ok: false, message: err?.message || String(err) });
 
@@ -268,6 +269,47 @@ export async function getMatches(payload) {
   }
 }
 
+// Still waiting: not told yet = waiting or drafted (same rule as the release cards and the Rovo agent).
+const NOT_TOLD = new Set(['waiting', 'drafted']);
+
+// Stored match + its release -> one Still waiting row. First name only, no email or account id.
+export function stillWaitingRow(match, release, now = new Date()) {
+  return {
+    versionId: String(release.versionId),
+    release: release.name,
+    requestKey: match.requestKey,
+    customer: customerFirstName(match.customerName),
+    bugKey: match.bugKey,
+    bugSummary: hideEmails(match.bugSummary),
+    daysWaiting: daysWaiting(release.releasedAt, now),
+  };
+}
+
+// Most days waiting first (= oldest release first); unknown days (no release date) last.
+// Ties: release name, then request key (HELP-2 before HELP-10).
+export function sortStillWaiting(rows) {
+  const days = (r) => (typeof r.daysWaiting === 'number' ? r.daysWaiting : -1);
+  return [...rows].sort(
+    (a, b) => days(b) - days(a)
+      || String(a.release).localeCompare(String(b.release))
+      || String(a.requestKey).localeCompare(String(b.requestKey), undefined, { numeric: true }),
+  );
+}
+
+// Every match not told yet, across all releases, with daysWaiting computed now (never stored).
+export async function getStillWaiting() {
+  try {
+    const releases = await listReleases();
+    const perRelease = await Promise.all(releases.map((r) => listMatches(r.versionId)));
+    const now = new Date();
+    const rows = releases.flatMap((release, i) =>
+      perRelease[i].filter((m) => NOT_TOLD.has(m.status)).map((m) => stillWaitingRow(m, release, now)));
+    return { ok: true, data: sortStillWaiting(rows) };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
 export function defineResolvers(resolver) {
   resolver.define('getSettings', getSettings);
   resolver.define('getReleases', getReleases);
@@ -277,4 +319,5 @@ export function defineResolvers(resolver) {
   resolver.define('updateMatch', ({ payload }) => updateMatch(payload));
   resolver.define('sendReply', ({ payload }) => sendReply(payload));
   resolver.define('rescanRelease', ({ payload }) => rescanRelease(payload));
+  resolver.define('getStillWaiting', getStillWaiting);
 }
