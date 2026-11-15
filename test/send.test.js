@@ -36,7 +36,7 @@ vi.mock('@forge/api', () => {
   };
 });
 
-const { updateMatch, sendReply, rescanRelease, getMatches } = await import('../src/resolvers/index.js');
+const { updateMatch, sendReply, rescanRelease, getMatches, getOneMatch } = await import('../src/resolvers/index.js');
 
 const SETTINGS = { jiraProjectKey: 'LOOP', jsmProjectKey: 'HELP', autoResolve: false, resolveStatusName: 'Resolved' };
 const match = (extra = {}) => ({
@@ -110,6 +110,22 @@ describe('shared words for old matches in the inbox', () => {
     expect(tabs.sent).toHaveLength(1);
     expect(tabs.other).toHaveLength(2);
     expect([...kv]).toEqual(before); // nothing written, statuses unchanged
+  });
+});
+
+describe('getMatch (one match, for the Rovo check)', () => {
+  test('returns only status, draft (name filled), draftSource and updatedAt; saves nothing', async () => {
+    const before = structuredClone([...kv]);
+    expect(await getOneMatch({ versionId: '1', requestKey: 'HELP-1' })).toEqual({
+      ok: true,
+      data: { requestKey: 'HELP-1', status: 'drafted', draft: 'Hi Ana,\n\nFixed.\n\nThanks,\nRafli', draftSource: 'template', updatedAt: null },
+    });
+    expect([...kv]).toEqual(before);
+  });
+
+  test('unknown or bad keys fail cleanly', async () => {
+    expect((await getOneMatch({ versionId: '1', requestKey: 'HELP-99' })).ok).toBe(false);
+    expect((await getOneMatch({ versionId: 'x', requestKey: 'HELP-1' })).ok).toBe(false);
   });
 });
 

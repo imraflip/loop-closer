@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Box, Button, EmptyState, Heading, Inline, LoadingButton, ProgressBar, SectionMessage, Spinner, Stack, Tab, TabList, TabPanel, Tabs, Text,
 } from '@forge/react';
@@ -7,6 +7,7 @@ import { firstWord as firstName } from '../../lib/drafts';
 import MatchRow from './MatchRow';
 import MatchPanel from './MatchPanel';
 import RefreshButton from './RefreshButton';
+import { watchDraft } from './draftWatch';
 import SendConfirmModal from './SendConfirmModal';
 import { leftColumnStyle, panelStyle, rightColumnStyle } from './styles';
 import { improvePrompt, plural, rovoOpenPayload } from './format';
@@ -53,6 +54,18 @@ const ReleaseDetail = ({ versionId, onBack }) => {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Background check for a Rovo draft (one request at a time). Stopped on leaving this screen.
+  const watchRef = useRef(null); // { requestKey, stop }
+  const stopWatch = useCallback(() => {
+    watchRef.current?.stop();
+    watchRef.current = null;
+  }, []);
+  useEffect(() => stopWatch, [stopWatch]);
+  // The user's own change to that request (template, skip, send) must not look like a Rovo draft.
+  const stopWatchFor = (m) => {
+    if (watchRef.current?.requestKey === m.requestKey) stopWatch();
+  };
 
   const back = <Box><Button appearance="subtle" iconBefore="arrow-left" onClick={onBack}>All releases</Button></Box>;
 
@@ -111,6 +124,7 @@ const ReleaseDetail = ({ versionId, onBack }) => {
   };
 
   const setStatus = async (m, status) => {
+    stopWatchFor(m);
     setBusy(true);
     setActionError(null);
     try {
@@ -126,6 +140,7 @@ const ReleaseDetail = ({ versionId, onBack }) => {
 
   // "Use template": replace this reply with the template (drops unsaved typing too), then reload.
   const useTemplate = async (m) => {
+    stopWatchFor(m);
     setBusy(true);
     setActionError(null);
     try {
@@ -144,6 +159,7 @@ const ReleaseDetail = ({ versionId, onBack }) => {
   // "Rescan": runs the scan again (keeps sent, skipped, not related and saved drafts), then reloads this screen.
   const rescan = async () => {
     if (rescanning) return;
+    stopWatch();
     setRescanning(true);
     setBusy(true);
     setActionError(null);
@@ -184,15 +200,32 @@ const ReleaseDetail = ({ versionId, onBack }) => {
     setBusy(false);
     if (!saved) return;
     if (hadEdit) await load(); // show the saved text, not the old draft
+    const key = { versionId, requestKey: m.requestKey };
+    let baseline;
     try {
+      baseline = await call('getMatch', key); // what the reply looks like before Rovo
       await rovo.open(rovoOpenPayload(m));
     } catch (err) {
       setActionError(`Could not open Rovo chat (${err.message || 'unknown error'}). Open Rovo chat, pick Loop Closer, and ask: "${improvePrompt(m.requestKey)}"`);
+      return;
     }
+    // Show Rovo's draft as soon as it is saved: quiet checks every 3 s for up to 60 s, no spinner.
+    stopWatch();
+    const stop = watchDraft({
+      read: () => call('getMatch', key),
+      baseline,
+      onChange: async () => {
+        watchRef.current = null;
+        await load(); // reply box, Template / Rovo / Edited label and counts
+        showFlag({ id: `rovo-${m.requestKey}-${Date.now()}`, title: 'Rovo draft saved', type: 'success', isAutoDismiss: true });
+      },
+    });
+    watchRef.current = { requestKey: m.requestKey, stop };
   };
 
   // "Send and next": save the edit, then ask to confirm. Nothing is sent here.
   const askToSend = async (m) => {
+    stopWatchFor(m);
     setActionError(null);
     setBusy(true);
     const saved = await saveEdit(m);
@@ -243,7 +276,11 @@ const ReleaseDetail = ({ versionId, onBack }) => {
             edited={editable && isEdited(selected)}
             busy={busy}
             boxRevision={boxRevision}
-            onDraftChange={(text) => setEdits((e) => ({ ...e, [selected.requestKey]: text }))}
+            onDraftChange={(text) => {
+              // Typing in this reply box ends the Rovo check, so what the user types is never overwritten.
+              if (watchRef.current?.requestKey === selected.requestKey) stopWatch();
+              setEdits((e) => ({ ...e, [selected.requestKey]: text }));
+            }}
             onUseTemplate={() => useTemplate(selected)}
             onImprove={() => improve(selected)}
             onSkip={() => setStatus(selected, 'skipped')}

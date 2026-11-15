@@ -237,6 +237,22 @@ export async function sendReply(payload) {
   return { ok: true, data: { match: matchView(saved), warning } };
 }
 
+// One match by { versionId, requestKey }, for the background check after "Improve with Rovo".
+// Only what the reply box needs; the draft has the agent name filled like getMatches.
+// updatedAt: no writer stores it yet, so it is null for now (the check compares draft and draftSource).
+export async function getOneMatch(payload) {
+  try {
+    const m = await loadMatch(payload);
+    const view = matchView(m, await myDisplayName());
+    return {
+      ok: true,
+      data: { requestKey: view.requestKey, status: view.status, draft: view.draft, draftSource: view.draftSource, updatedAt: m.updatedAt ?? null },
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
 // One release with its matches split by tab. Counts come from the matches, not the stored release counts.
 export async function getMatches(payload) {
   try {
@@ -257,6 +273,7 @@ export function defineResolvers(resolver) {
   resolver.define('getReleases', getReleases);
   resolver.define('listReleasedVersions', listReleasedVersions);
   resolver.define('getMatches', ({ payload }) => getMatches(payload));
+  resolver.define('getMatch', ({ payload }) => getOneMatch(payload));
   resolver.define('updateMatch', ({ payload }) => updateMatch(payload));
   resolver.define('sendReply', ({ payload }) => sendReply(payload));
   resolver.define('rescanRelease', ({ payload }) => rescanRelease(payload));
