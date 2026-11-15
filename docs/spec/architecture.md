@@ -297,6 +297,11 @@ Words shorter than 3 letters are already dropped by `tokenize`. Do not add produ
 
 All run as the current user. All return `{ ok, data }` or `{ ok: false, message }`.
 
+Permission checks (both via `GET /rest/api/3/mypermissions` as the user, `read:jira-work`; any failure counts as "no"):
+
+- `saveSettings` and `testMatching`: Jira admins only (`ADMINISTER`), else "Only Jira admins can change Loop Closer settings." / "Only Jira admins can test Loop Closer settings."
+- `getReleases`, `getMatches`, `getMatch`, `getStillWaiting`, `updateMatch`: agents on the chosen service desk (`SERVICEDESK_AGENT` on `jsmProjectKey`) or Jira admins (`ADMINISTER`). The admin check runs only when the agent check says no or fails. If both say no or fail: "Only agents on the {jsmKey} service desk can use the Loop Closer inbox." These read or change app storage, where Jira's own permissions do not apply. `sendReply` and `rescanRelease` call Jira as the user, so Jira checks them itself.
+
 | Name | Input | Output `data` | Atlassian calls |
 | --- | --- | --- | --- |
 | `getSettings` | none | settings object or `null` | KVS only |

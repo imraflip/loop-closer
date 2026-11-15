@@ -136,7 +136,7 @@ Kind regards,
 | Release list | Spinner + "Loading releases" | "No releases scanned yet. Release a version in your Jira project, or click Scan a release." | "Could not load releases: {message}" |
 | Release inbox | Spinner + "Loading customers" | "No customers matched this release. Try Loose match strictness in Settings." | "Could not load this release: {message}" |
 | Still waiting | Spinner | "Everyone has been told. Nice work." | "Could not load: {message}" |
-| Any screen, not configured | none | SectionMessage: "Loop Closer is not set up yet. Ask a Jira admin to choose projects in Loop Closer settings." | none |
+| Any screen, not configured | none | Jira admins: SectionMessage "Loop Closer needs setup. Open Settings to choose your projects." with a Button "Open Settings" (opens the Settings page). Everyone else: SectionMessage "Loop Closer is not set up yet. Ask a Jira admin to choose projects in Loop Closer settings." (no button; the Settings page is admin only). | none |
 
 ## Mockups
 
