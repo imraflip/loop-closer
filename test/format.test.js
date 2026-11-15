@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { canImproveWithRovo, pinFirst, testResultText, canSend, changeText, draftBoxKey, draftParagraphs, improvePrompt, rovoOpenPayload, sentLabel, sharedWords } from '../src/frontend/components/format.js';
+import { canImproveWithRovo, pinFirst, testResultText, setupBanner, canSend, changeText, draftBoxKey, draftParagraphs, improvePrompt, rovoOpenPayload, sentLabel, sharedWords } from '../src/frontend/components/format.js';
 
 describe('changeText (reply box onChange)', () => {
   test('reads the text from an event or a plain string', () => {
@@ -148,5 +148,18 @@ describe('testResultText (Settings: Test on a release)', () => {
     expect(testResultText({ count: 10, linked: 4 })).toBe('This release would match 10 customers (4 linked).');
     expect(testResultText({ count: 1, linked: 1 })).toBe('This release would match 1 customer (1 linked).');
     expect(testResultText({ count: 0, linked: 0 })).toBe('This release would match 0 customers (0 linked).');
+  });
+});
+
+describe('setupBanner (inbox with no settings saved)', () => {
+  test('admin: needs-setup text and the Open Settings button', () => {
+    expect(setupBanner(true)).toEqual({ text: 'Loop Closer needs setup. Open Settings to choose your projects.', showButton: true });
+  });
+
+  test('not an admin: design.md text, no button (the Settings page is admin only)', () => {
+    expect(setupBanner(false)).toEqual({
+      text: 'Loop Closer is not set up yet. Ask a Jira admin to choose projects in Loop Closer settings.',
+      showButton: false,
+    });
   });
 });

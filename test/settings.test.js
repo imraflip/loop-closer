@@ -43,7 +43,7 @@ vi.mock('@forge/api', () => ({
 const findMatches = vi.fn();
 vi.mock('../src/lib/scan.js', async (orig) => ({ ...(await orig()), findMatches: (...args) => findMatches(...args) }));
 
-const { saveSettings, listProjects, testMatching, listReleasedVersions, ADMINS_ONLY, ADMINS_ONLY_TEST } = await import('../src/resolvers/index.js');
+const { saveSettings, listProjects, testMatching, listReleasedVersions, amIAdmin, ADMINS_ONLY, ADMINS_ONLY_TEST } = await import('../src/resolvers/index.js');
 
 const form = { jiraProjectKey: 'LOOP', jsmProjectKey: 'HELP', tone: 'formal', autoResolve: false, resolveStatusName: 'Resolved', threshold: 0.3, lookbackDays: 90 };
 
@@ -158,5 +158,16 @@ describe('admin only (mocked non-admin)', () => {
 
   test('admin: saveSettings works', async () => {
     expect(await saveSettings(form)).toEqual({ ok: true, data: form });
+  });
+});
+
+describe('amIAdmin (inbox setup banner)', () => {
+  test('admin, non-admin, and a failed check (counts as not admin)', async () => {
+    expect(await amIAdmin()).toEqual({ ok: true, data: { isAdmin: true } });
+    jira.admin = false;
+    expect(await amIAdmin()).toEqual({ ok: true, data: { isAdmin: false } });
+    jira.admin = true;
+    jira.permissionsFail = true;
+    expect(await amIAdmin()).toEqual({ ok: true, data: { isAdmin: false } });
   });
 });

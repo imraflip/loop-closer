@@ -11,7 +11,7 @@ import ForgeReconciler, {
   Tabs,
   Text,
 } from '@forge/react';
-import { invoke, showFlag } from '@forge/bridge';
+import { invoke, router, showFlag } from '@forge/bridge';
 import StatTile from './components/StatTile';
 import ReleaseList from './components/ReleaseList';
 import ReleaseDetail from './components/ReleaseDetail';
@@ -19,11 +19,35 @@ import RefreshButton from './components/RefreshButton';
 import ScanModal from './components/ScanModal';
 import StillWaiting from './components/StillWaiting';
 import { panelStyle } from './components/styles';
+import { SETTINGS_MODULE_KEY, setupBanner } from './components/format';
 
-const NOT_SET_UP = 'Loop Closer is not set up yet. Ask a Jira admin to choose projects in Loop Closer settings.';
+// No settings saved yet: admins get a button to the Settings page, everyone else is told to ask an admin.
+const NotSetUp = ({ isAdmin }) => {
+  const [navError, setNavError] = useState(null);
+  const banner = setupBanner(isAdmin);
+  const open = async () => {
+    setNavError(null);
+    try {
+      await router.navigate({ target: 'module', moduleKey: SETTINGS_MODULE_KEY });
+    } catch (err) {
+      setNavError(`Could not open Settings (${err?.message || 'unknown error'}). Go to Jira settings, Apps, Loop Closer settings.`);
+    }
+  };
+  return (
+    <Stack space="space.200">
+      <SectionMessage appearance="warning">
+        <Stack space="space.150">
+          <Text>{banner.text}</Text>
+          {banner.showButton ? <Box><Button appearance="primary" onClick={open}>Open Settings</Button></Box> : null}
+        </Stack>
+      </SectionMessage>
+      {navError ? <SectionMessage appearance="error"><Text>{navError}</Text></SectionMessage> : null}
+    </Stack>
+  );
+};
 
 const App = () => {
-  const [state, setState] = useState({ loading: true, configured: true, error: null, releases: [] });
+  const [state, setState] = useState({ loading: true, configured: true, isAdmin: false, error: null, releases: [] });
   // set -> Screen 2 (Release inbox): { versionId, requestKey }; requestKey (from Still waiting) is the customer to show first.
   const [openRelease, setOpenRelease] = useState(null);
   const openReleaseAt = (versionId, requestKey = null) => setOpenRelease({ versionId, requestKey });
@@ -37,7 +61,8 @@ const App = () => {
         const settings = await invoke('getSettings');
         if (!settings?.ok) throw new Error(settings?.message || 'unknown error');
         if (!settings.data) {
-          setState({ loading: false, configured: false, error: null, releases: [] });
+          const admin = await invoke('amIAdmin');
+          setState({ loading: false, configured: false, isAdmin: admin?.ok === true && admin.data?.isAdmin === true, error: null, releases: [] });
           return;
         }
         const res = await invoke('getReleases');
@@ -52,7 +77,7 @@ const App = () => {
   }, [reloadKey]);
 
   if (!state.configured) {
-    return <SectionMessage appearance="warning"><Text>{NOT_SET_UP}</Text></SectionMessage>;
+    return <NotSetUp isAdmin={state.isAdmin} />;
   }
 
   if (openRelease) {

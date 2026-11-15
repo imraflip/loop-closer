@@ -43,6 +43,11 @@ async function callerIsAdmin() {
   }
 }
 
+// Inbox setup banner: only Jira admins get the "Open Settings" button. data: { isAdmin }.
+export async function amIAdmin() {
+  return { ok: true, data: { isAdmin: await callerIsAdmin() } };
+}
+
 // Settings page "Save settings": Jira admins only; checks the fields (design.md Screen 4), then saves them.
 export async function saveSettings(payload) {
   try {
@@ -370,6 +375,7 @@ export async function getStillWaiting() {
 
 export function defineResolvers(resolver) {
   resolver.define('getSettings', getSettings);
+  resolver.define('amIAdmin', amIAdmin);
   resolver.define('saveSettings', ({ payload }) => saveSettings(payload));
   resolver.define('listProjects', listProjects);
   resolver.define('testMatching', ({ payload }) => testMatching(payload));

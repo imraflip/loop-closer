@@ -25,6 +25,13 @@ export function pinFirst(list, requestKey) {
   return i <= 0 ? list : [list[i], ...list.slice(0, i), ...list.slice(i + 1)];
 }
 
+// Inbox banner when no settings are saved. Admins can open Settings; everyone else is told to ask one.
+export const SETTINGS_MODULE_KEY = 'loop-closer-settings'; // manifest jira:adminPage key
+export const setupBanner = (isAdmin) =>
+  isAdmin
+    ? { text: 'Loop Closer needs setup. Open Settings to choose your projects.', showButton: true }
+    : { text: 'Loop Closer is not set up yet. Ask a Jira admin to choose projects in Loop Closer settings.', showButton: false };
+
 // Settings page "Test on a release" result: "This release would match 10 customers (4 linked)."
 export const testResultText = ({ count, linked }) =>
   `This release would match ${plural(count, 'customer', 'customers')} (${linked} linked).`;
