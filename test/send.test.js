@@ -36,6 +36,14 @@ vi.mock('@forge/api', () => {
   };
 });
 
+// Mocked inbox checks: service desk agent, then Jira admin (the real Jira calls are tested in settings.test.js).
+const agent = vi.hoisted(() => ({ yes: true, admin: false }));
+vi.mock('../src/lib/jira.js', async (orig) => ({
+  ...(await orig()),
+  isServiceDeskAgent: async () => agent.yes,
+  isJiraAdmin: async () => agent.admin,
+}));
+
 const { updateMatch, sendReply, rescanRelease, getMatches, getOneMatch } = await import('../src/resolvers/index.js');
 
 const SETTINGS = { jiraProjectKey: 'LOOP', jsmProjectKey: 'HELP', autoResolve: false, resolveStatusName: 'Resolved' };

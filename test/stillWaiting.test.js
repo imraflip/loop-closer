@@ -24,6 +24,14 @@ vi.mock('@forge/api', () => ({
   route: String.raw,
 }));
 
+// Mocked inbox checks: service desk agent, then Jira admin (the real Jira calls are tested in settings.test.js).
+const agent = vi.hoisted(() => ({ yes: true, admin: false }));
+vi.mock('../src/lib/jira.js', async (orig) => ({
+  ...(await orig()),
+  isServiceDeskAgent: async () => agent.yes,
+  isJiraAdmin: async () => agent.admin,
+}));
+
 const { getStillWaiting, sortStillWaiting } = await import('../src/resolvers/index.js');
 const { daysWaiting } = await import('../src/actions/agentActions.js');
 const { waitedTooLong, daysLabel } = await import('../src/frontend/components/format.js');
@@ -79,6 +87,7 @@ describe('getStillWaiting', () => {
 
   beforeEach(() => {
     kv.clear();
+    kv.set('settings', { jiraProjectKey: 'LOOP', jsmProjectKey: 'HELP' });
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-11-15T10:00:00Z'));
     kv.set('release:1', { versionId: '1', name: '2.3', releasedAt: '2026-10-01' });
@@ -105,6 +114,7 @@ describe('getStillWaiting', () => {
 
   test('nobody waiting: empty list', async () => {
     kv.clear();
+    kv.set('settings', { jiraProjectKey: 'LOOP', jsmProjectKey: 'HELP' });
     expect(await getStillWaiting()).toEqual({ ok: true, data: [] });
   });
 });

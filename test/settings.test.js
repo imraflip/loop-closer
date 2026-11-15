@@ -20,11 +20,15 @@ vi.mock('@forge/kvs', () => ({
 }));
 
 // Jira answers by URL: project search pages and project versions.
-const jira = { pages: {}, versions: [], admin: true, permissionsFail: false };
+const jira = { pages: {}, versions: [], admin: true, agent: true, permissionsFail: false };
 const requestJira = vi.fn(async (url) => {
   const u = new URL(String(url), 'https://x');
   if (u.pathname === '/rest/api/3/mypermissions') {
     if (jira.permissionsFail) return { ok: false, status: 500, text: async () => 'down' };
+    if (u.searchParams.get('permissions') === 'SERVICEDESK_AGENT') {
+      expect(u.searchParams.get('projectKey')).toBe('HELP');
+      return { ok: true, json: async () => ({ permissions: { SERVICEDESK_AGENT: { key: 'SERVICEDESK_AGENT', type: 'PROJECT', havePermission: jira.agent } } }) };
+    }
     expect(u.searchParams.get('permissions')).toBe('ADMINISTER');
     return { ok: true, json: async () => ({ permissions: { ADMINISTER: { key: 'ADMINISTER', type: 'GLOBAL', havePermission: jira.admin } } }) };
   }
@@ -43,13 +47,14 @@ vi.mock('@forge/api', () => ({
 const findMatches = vi.fn();
 vi.mock('../src/lib/scan.js', async (orig) => ({ ...(await orig()), findMatches: (...args) => findMatches(...args) }));
 
-const { saveSettings, listProjects, testMatching, listReleasedVersions, amIAdmin, ADMINS_ONLY, ADMINS_ONLY_TEST } = await import('../src/resolvers/index.js');
+const { getReleases, saveSettings, listProjects, testMatching, listReleasedVersions, amIAdmin, ADMINS_ONLY, ADMINS_ONLY_TEST } = await import('../src/resolvers/index.js');
 
 const form = { jiraProjectKey: 'LOOP', jsmProjectKey: 'HELP', tone: 'formal', autoResolve: false, resolveStatusName: 'Resolved', threshold: 0.3, lookbackDays: 90 };
 
 beforeEach(() => {
   kv.clear();
-  jira.admin = true; // mocked Jira admin unless a test says otherwise
+  jira.admin = true; // mocked Jira admin and agent unless a test says otherwise
+  jira.agent = true;
   jira.permissionsFail = false;
   requestJira.mockClear();
   findMatches.mockReset();
@@ -169,5 +174,38 @@ describe('amIAdmin (inbox setup banner)', () => {
     jira.admin = true;
     jira.permissionsFail = true;
     expect(await amIAdmin()).toEqual({ ok: true, data: { isAdmin: false } });
+  });
+});
+
+describe('service desk agent check (real Jira call, mocked answer)', () => {
+  beforeEach(() => kv.set('settings', form));
+
+  test('agent on the chosen service desk: allowed', async () => {
+    expect(await getReleases()).toEqual({ ok: true, data: [] });
+  });
+
+  test('Jira admin who is not an agent: allowed', async () => {
+    jira.agent = false;
+    jira.admin = true;
+    expect(await getReleases()).toEqual({ ok: true, data: [] });
+  });
+
+  test('neither agent nor admin, or both checks fail: refused', async () => {
+    const denied = { ok: false, message: 'Only agents on the HELP service desk can use the Loop Closer inbox.' };
+    jira.agent = false;
+    jira.admin = false;
+    expect(await getReleases()).toEqual(denied);
+    jira.agent = true;
+    jira.admin = true;
+    jira.permissionsFail = true; // both mypermissions calls fail
+    expect(await getReleases()).toEqual(denied);
+  });
+
+  test('agent: the admin check is not called', async () => {
+    jira.admin = false;
+    requestJira.mockClear();
+    expect((await getReleases()).ok).toBe(true);
+    const asked = requestJira.mock.calls.map(([url]) => new URL(String(url), 'https://x').searchParams.get('permissions')).filter(Boolean);
+    expect(asked).toEqual(['SERVICEDESK_AGENT']);
   });
 });

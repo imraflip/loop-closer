@@ -124,6 +124,17 @@ export async function isJiraAdmin() {
   return body?.permissions?.ADMINISTER?.havePermission === true;
 }
 
+// True only if the signed-in user is a service desk agent on that project (SERVICEDESK_AGENT).
+// GET /rest/api/3/mypermissions?projectKey=KEY&permissions=SERVICEDESK_AGENT as the user (read:jira-work). Throws on a failed call.
+export async function isServiceDeskAgent(projectKey) {
+  const res = await api.asUser().requestJira(
+    route`/rest/api/3/mypermissions?projectKey=${checkProjectKey(projectKey)}&permissions=${'SERVICEDESK_AGENT'}`,
+    { headers: { Accept: 'application/json' } },
+  );
+  const body = await readJson(res, 'Check permissions');
+  return body?.permissions?.SERVICEDESK_AGENT?.havePermission === true;
+}
+
 // Display name of the logged-in user (GET /rest/api/3/myself, read:jira-user). Used to sign replies.
 export async function getMyDisplayName() {
   const res = await api.asUser().requestJira(route`/rest/api/3/myself`, { headers: { Accept: 'application/json' } });

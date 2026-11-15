@@ -5,6 +5,7 @@ const versions = { list: [] };
 vi.mock('@forge/kvs', () => ({
   kvs: {
     get: async (key) => kv.get(key),
+    set: async (key, value) => void kv.set(key, value),
     query: () => {
       let prefix = '';
       const q = {
@@ -25,14 +26,27 @@ vi.mock('@forge/api', () => {
   return { default: { asUser: () => ({ requestJira }), asApp: () => ({ requestJira }) }, route: (s, ...v) => s.reduce((a, p, i) => a + p + (v[i] ?? ''), '') };
 });
 
-const { getReleases, listReleasedVersions, getSettings, releaseSummary, getMatches } = await import('../src/resolvers/index.js');
+// Mocked inbox checks: service desk agent, then Jira admin (the real Jira calls are tested in settings.test.js).
+const agent = vi.hoisted(() => ({ yes: true, admin: false }));
+vi.mock('../src/lib/jira.js', async (orig) => ({
+  ...(await orig()),
+  isServiceDeskAgent: async () => agent.yes,
+  isJiraAdmin: async () => agent.admin,
+}));
+
+const { getReleases, listReleasedVersions, getSettings, releaseSummary, getMatches, getStillWaiting, getOneMatch, updateMatch, notAgent } = await import('../src/resolvers/index.js');
 
 const release = (versionId, releasedAt, counts) => ({
   versionId, name: `v${versionId}`, releasedAt, jiraProjectKey: 'LOOP', bugKeys: ['LOOP-1', 'LOOP-2'], counts,
 });
 
+const SETTINGS = { jiraProjectKey: 'LOOP', jsmProjectKey: 'HELP' };
+
 describe('getReleases', () => {
-  beforeEach(() => kv.clear());
+  beforeEach(() => {
+    kv.clear();
+    kv.set('settings', SETTINGS);
+  });
 
   test('newest first; waiting = waiting + drafted; total = all matches', async () => {
     kv.set('release:1', release('1', '2026-10-01', { waiting: 1, drafted: 7, sent: 2, skipped: 1, notRelated: 1 }));
@@ -82,7 +96,10 @@ describe('listReleasedVersions', () => {
 });
 
 describe('getMatches', () => {
-  beforeEach(() => kv.clear());
+  beforeEach(() => {
+    kv.clear();
+    kv.set('settings', SETTINGS);
+  });
 
   const m = (requestKey, status, extra = {}) => ({
     requestKey, status, versionId: '1', bugKey: 'LOOP-1', bugSummary: 'PDF export hangs', linked: false, score: 0.3,
@@ -121,5 +138,52 @@ describe('getMatches', () => {
     expect((await getMatches({})).ok).toBe(false);
     expect((await getMatches({ versionId: 'x:y' })).ok).toBe(false);
     expect(await getMatches({ versionId: '42' })).toEqual({ ok: false, message: 'This release has not been scanned yet' });
+  });
+});
+
+describe('inbox resolvers: service desk agents or Jira admins only', () => {
+  beforeEach(() => {
+    kv.clear();
+    kv.set('settings', SETTINGS);
+    kv.set('release:1', release('1', '2026-10-01', { waiting: 1 }));
+    kv.set('match:1:HELP-5', { requestKey: 'HELP-5', versionId: '1', customerName: 'Eko Prasetyo', status: 'waiting', draft: 'Hi' });
+    agent.yes = false;
+    agent.admin = false;
+    return () => {
+      agent.yes = true;
+      agent.admin = false;
+    };
+  });
+
+  test('non-admin non-agent: every inbox read and change is refused, with no customer data', async () => {
+    const denied = { ok: false, message: 'Only agents on the HELP service desk can use the Loop Closer inbox.' };
+    expect(notAgent('HELP')).toBe(denied.message);
+    expect(await getReleases()).toEqual(denied);
+    expect(await getMatches({ versionId: '1' })).toEqual(denied);
+    expect(await getOneMatch({ versionId: '1', requestKey: 'HELP-5' })).toEqual(denied);
+    expect(await getStillWaiting()).toEqual(denied);
+    expect(await updateMatch({ versionId: '1', requestKey: 'HELP-5', status: 'skipped' })).toEqual(denied);
+    expect(kv.get('match:1:HELP-5').status).toBe('waiting'); // not changed
+  });
+
+  test('admin who is not an agent: allowed, and can change a match', async () => {
+    agent.admin = true;
+    expect((await getReleases()).ok).toBe(true);
+    expect((await getMatches({ versionId: '1' })).ok).toBe(true);
+    expect((await getOneMatch({ versionId: '1', requestKey: 'HELP-5' })).ok).toBe(true);
+    expect((await getStillWaiting()).data.map((r) => r.requestKey)).toEqual(['HELP-5']);
+    expect((await updateMatch({ versionId: '1', requestKey: 'HELP-5', status: 'skipped' })).ok).toBe(true);
+    expect(kv.get('match:1:HELP-5').status).toBe('skipped');
+  });
+
+  test('agent who is not an admin: allowed', async () => {
+    agent.yes = true;
+    expect((await getReleases()).ok).toBe(true);
+    expect((await getStillWaiting()).data.map((r) => r.requestKey)).toEqual(['HELP-5']);
+  });
+
+  test('no settings saved: not configured, before any agent check', async () => {
+    kv.delete('settings');
+    expect(await getReleases()).toEqual({ ok: false, message: 'Loop Closer is not configured' });
   });
 });

@@ -2,7 +2,7 @@
 import {
   getSettings as readSettings, saveSettings as writeSettings, checkSettings, listReleases, getRelease, listMatches, countStatuses, getMatch, saveMatch, refreshCounts,
 } from '../lib/store.js';
-import { getProjects, getProjectVersions, getMyDisplayName, isJiraAdmin } from '../lib/jira.js';
+import { getProjects, getProjectVersions, getMyDisplayName, isJiraAdmin, isServiceDeskAgent } from '../lib/jira.js';
 import { getRequestStatus, addPublicComment, resolveRequest, checkRequestKey } from '../lib/jsm.js';
 import { NOT_CONFIGURED, scanRelease, findMatches } from '../lib/scan.js';
 import { reasonWordsFor } from '../lib/match.js';
@@ -41,6 +41,23 @@ async function callerIsAdmin() {
     console.error(`admin check failed: ${err.message}`);
     return false;
   }
+}
+
+// Matches hold customer names and request text from the service desk, but they live in app storage,
+// where Jira's own permissions do not apply. So the inbox resolvers that read or change them first ask
+// Jira, as the caller: are they an agent on the chosen service desk, or else a Jira admin?
+// A failed check counts as "no"; the caller is refused only when both answers are "no".
+export const notAgent = (jsmKey) => `Only agents on the ${jsmKey} service desk can use the Loop Closer inbox.`;
+async function agentCheck() {
+  const settings = await readSettings();
+  if (!settings?.jsmProjectKey) return { ok: false, message: NOT_CONFIGURED };
+  try {
+    if (await isServiceDeskAgent(settings.jsmProjectKey)) return null;
+  } catch (err) {
+    console.error(`agent check failed: ${err.message}`);
+  }
+  if (await callerIsAdmin()) return null; // never throws; a failure is "not admin"
+  return { ok: false, message: notAgent(settings.jsmProjectKey) };
 }
 
 // Inbox setup banner: only Jira admins get the "Open Settings" button. data: { isAdmin }.
@@ -112,6 +129,8 @@ export function sortNewestFirst(rows, dateField = 'releasedAt') {
 
 export async function getReleases() {
   try {
+    const denied = await agentCheck();
+    if (denied) return denied;
     const releases = await listReleases();
     return { ok: true, data: sortNewestFirst(releases.map(releaseSummary)) };
   } catch (err) {
@@ -212,6 +231,8 @@ async function loadMatch(payload) {
 // Saves an edited draft and/or a status (skipped, not_related, drafted). Never touches a sent match.
 export async function updateMatch(payload) {
   try {
+    const denied = await agentCheck();
+    if (denied) return denied;
     const match = await loadMatch(payload);
     if (match.status === 'sent') return { ok: false, message: `${match.requestKey} was already sent and cannot be changed` };
 
@@ -306,6 +327,8 @@ export async function sendReply(payload) {
 // updatedAt: no writer stores it yet, so it is null for now (the check compares draft and draftSource).
 export async function getOneMatch(payload) {
   try {
+    const denied = await agentCheck();
+    if (denied) return denied;
     const m = await loadMatch(payload);
     const view = matchView(m, await myDisplayName());
     return {
@@ -320,6 +343,8 @@ export async function getOneMatch(payload) {
 // One release with its matches split by tab. Counts come from the matches, not the stored release counts.
 export async function getMatches(payload) {
   try {
+    const denied = await agentCheck();
+    if (denied) return denied;
     const versionId = checkVersionId(payload?.versionId);
     const [release, matches, agentName] = await Promise.all([getRelease(versionId), listMatches(versionId), myDisplayName()]);
     if (!release) return { ok: false, message: 'This release has not been scanned yet' };
@@ -362,6 +387,8 @@ export function sortStillWaiting(rows) {
 // Every match not told yet, across all releases, with daysWaiting computed now (never stored).
 export async function getStillWaiting() {
   try {
+    const denied = await agentCheck();
+    if (denied) return denied;
     const releases = await listReleases();
     const perRelease = await Promise.all(releases.map((r) => listMatches(r.versionId)));
     const now = new Date();
