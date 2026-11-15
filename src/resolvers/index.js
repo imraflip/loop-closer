@@ -2,7 +2,7 @@
 import {
   getSettings as readSettings, saveSettings as writeSettings, checkSettings, listReleases, getRelease, listMatches, countStatuses, getMatch, saveMatch, refreshCounts,
 } from '../lib/store.js';
-import { getProjects, getProjectVersions, getMyDisplayName } from '../lib/jira.js';
+import { getProjects, getProjectVersions, getMyDisplayName, isJiraAdmin } from '../lib/jira.js';
 import { getRequestStatus, addPublicComment, resolveRequest, checkRequestKey } from '../lib/jsm.js';
 import { NOT_CONFIGURED, scanRelease, findMatches } from '../lib/scan.js';
 import { reasonWordsFor } from '../lib/match.js';
@@ -29,9 +29,24 @@ export async function getSettings() {
   }
 }
 
-// Settings page "Save settings": checks the fields (design.md Screen 4), then saves them.
+export const ADMINS_ONLY = 'Only Jira admins can change Loop Closer settings.';
+export const ADMINS_ONLY_TEST = 'Only Jira admins can test Loop Closer settings.';
+
+// The Settings page and the inbox share one resolver function, so the admin page alone does not protect
+// these resolvers. Ask Jira, as the caller, whether they are a Jira admin. Any failure counts as "no".
+async function callerIsAdmin() {
+  try {
+    return await isJiraAdmin();
+  } catch (err) {
+    console.error(`admin check failed: ${err.message}`);
+    return false;
+  }
+}
+
+// Settings page "Save settings": Jira admins only; checks the fields (design.md Screen 4), then saves them.
 export async function saveSettings(payload) {
   try {
+    if (!(await callerIsAdmin())) return { ok: false, message: ADMINS_ONLY };
     const checked = checkSettings(payload);
     if (!checked.ok) return checked;
     return { ok: true, data: await writeSettings(checked.data) };
@@ -53,10 +68,11 @@ export async function listProjects() {
   }
 }
 
-// Settings page "Test on a release": scan steps 1 to 6 with the settings on the form (checked, not saved).
-// Saves nothing. data: { count, linked }.
+// Settings page "Test on a release": Jira admins only. Scan steps 1 to 6 with the settings on the form
+// (checked, not saved). Saves nothing. data: { count, linked }.
 export async function testMatching(payload) {
   try {
+    if (!(await callerIsAdmin())) return { ok: false, message: ADMINS_ONLY_TEST };
     const versionId = checkVersionId(payload?.versionId);
     const checked = checkSettings(payload?.settings);
     if (!checked.ok) return checked;

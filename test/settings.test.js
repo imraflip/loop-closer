@@ -20,9 +20,14 @@ vi.mock('@forge/kvs', () => ({
 }));
 
 // Jira answers by URL: project search pages and project versions.
-const jira = { pages: {}, versions: [] };
+const jira = { pages: {}, versions: [], admin: true, permissionsFail: false };
 const requestJira = vi.fn(async (url) => {
   const u = new URL(String(url), 'https://x');
+  if (u.pathname === '/rest/api/3/mypermissions') {
+    if (jira.permissionsFail) return { ok: false, status: 500, text: async () => 'down' };
+    expect(u.searchParams.get('permissions')).toBe('ADMINISTER');
+    return { ok: true, json: async () => ({ permissions: { ADMINISTER: { key: 'ADMINISTER', type: 'GLOBAL', havePermission: jira.admin } } }) };
+  }
   if (u.pathname === '/rest/api/3/project/search') {
     const pages = jira.pages[u.searchParams.get('typeKey')] || [[]];
     const i = Number(u.searchParams.get('startAt')) === 0 ? 0 : 1;
@@ -38,12 +43,14 @@ vi.mock('@forge/api', () => ({
 const findMatches = vi.fn();
 vi.mock('../src/lib/scan.js', async (orig) => ({ ...(await orig()), findMatches: (...args) => findMatches(...args) }));
 
-const { saveSettings, listProjects, testMatching, listReleasedVersions } = await import('../src/resolvers/index.js');
+const { saveSettings, listProjects, testMatching, listReleasedVersions, ADMINS_ONLY, ADMINS_ONLY_TEST } = await import('../src/resolvers/index.js');
 
 const form = { jiraProjectKey: 'LOOP', jsmProjectKey: 'HELP', tone: 'formal', autoResolve: false, resolveStatusName: 'Resolved', threshold: 0.3, lookbackDays: 90 };
 
 beforeEach(() => {
   kv.clear();
+  jira.admin = true; // mocked Jira admin unless a test says otherwise
+  jira.permissionsFail = false;
   requestJira.mockClear();
   findMatches.mockReset();
 });
@@ -112,5 +119,44 @@ describe('listReleasedVersions for the Settings page', () => {
       ok: true, data: [{ id: '10', name: '2.4', releaseDate: '2026-11-01' }],
     });
     expect(String(requestJira.mock.calls[0][0])).toBe('/rest/api/3/project/LOOP/versions');
+  });
+});
+
+describe('admin only (mocked non-admin)', () => {
+  test('ADMINS_ONLY is the exact message', () => {
+    expect(ADMINS_ONLY).toBe('Only Jira admins can change Loop Closer settings.');
+  });
+
+  test('saveSettings: non-admin gets the message and nothing is saved', async () => {
+    jira.admin = false;
+    expect(await saveSettings(form)).toEqual({ ok: false, message: ADMINS_ONLY });
+    expect(kv.has('settings')).toBe(false);
+  });
+
+  test('saveSettings: admin check comes first, even for a bad form', async () => {
+    jira.admin = false;
+    expect(await saveSettings({ ...form, threshold: 0.35 })).toEqual({ ok: false, message: ADMINS_ONLY });
+  });
+
+  test('saveSettings: permission check failing counts as not admin', async () => {
+    jira.permissionsFail = true;
+    expect(await saveSettings(form)).toEqual({ ok: false, message: ADMINS_ONLY });
+    expect(kv.has('settings')).toBe(false);
+  });
+
+  test('testMatching: non-admin gets the message and the scan never runs', async () => {
+    jira.admin = false;
+    expect(await testMatching({ versionId: '10001', settings: form })).toEqual({ ok: false, message: ADMINS_ONLY_TEST });
+    expect(findMatches).not.toHaveBeenCalled();
+  });
+
+  test('listProjects stays open: it runs as the user, so Jira shows only their own projects', async () => {
+    jira.admin = false;
+    jira.pages = { software: [[{ key: 'LOOP', name: 'Loop' }]], service_desk: [[]] };
+    expect((await listProjects()).ok).toBe(true);
+  });
+
+  test('admin: saveSettings works', async () => {
+    expect(await saveSettings(form)).toEqual({ ok: true, data: form });
   });
 });

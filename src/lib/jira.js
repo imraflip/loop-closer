@@ -114,6 +114,16 @@ export function adfToText(adf) {
   return parts.join(' ');
 }
 
+// True only if the signed-in user has the global "Administer Jira" permission.
+// GET /rest/api/3/mypermissions?permissions=ADMINISTER as the user (read:jira-work). Throws on a failed call.
+export async function isJiraAdmin() {
+  const res = await api.asUser().requestJira(route`/rest/api/3/mypermissions?permissions=${'ADMINISTER'}`, {
+    headers: { Accept: 'application/json' },
+  });
+  const body = await readJson(res, 'Check permissions');
+  return body?.permissions?.ADMINISTER?.havePermission === true;
+}
+
 // Display name of the logged-in user (GET /rest/api/3/myself, read:jira-user). Used to sign replies.
 export async function getMyDisplayName() {
   const res = await api.asUser().requestJira(route`/rest/api/3/myself`, { headers: { Accept: 'application/json' } });
