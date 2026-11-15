@@ -4,7 +4,7 @@ import { router } from '@forge/bridge';
 import { MAX_DRAFT_CHARS, MAX_WORDS, firstWord as firstName, wordCount } from '../../lib/drafts';
 import MatchLozenge from './MatchLozenge';
 import { quoteStyle, readOnlyDraftStyle } from './styles';
-import { SOURCE_LABEL, canSend, changeText, draftBoxKey, draftParagraphs, sentLabel, sharedWords } from './format';
+import { SOURCE_LABEL, canImproveWithRovo, canSend, changeText, draftBoxKey, draftParagraphs, sentLabel, sharedWords } from './format';
 
 // Right column: the selected customer, both sides of the match, and the reply draft.
 // On the Waiting tab the draft is editable (saved by the parent) and the action buttons are live.
@@ -14,7 +14,7 @@ import { SOURCE_LABEL, canSend, changeText, draftBoxKey, draftParagraphs, sentLa
 // resets to the last value it was given, so typed and pasted text never sticks.
 // `boxRevision` changes after "Use template" so the uncontrolled box remounts even if the saved text is unchanged.
 const MatchPanel = ({
-  match, releaseName, editable, draft, edited, busy, boxRevision = 0, onDraftChange, onUseTemplate, onSkip, onNotRelated, onSend,
+  match, releaseName, editable, draft, edited, busy, boxRevision = 0, onDraftChange, onUseTemplate, onImprove, onSkip, onNotRelated, onSend,
 }) => {
   const words = sharedWords(match);
   const source = edited ? 'edited' : match.draftSource;
@@ -91,8 +91,7 @@ const MatchPanel = ({
 
       {editable ? (
         <Inline space="space.100" alignBlock="center" shouldWrap>
-          {/* Phase 3: opens Rovo chat. */}
-          <Button isDisabled>Improve with Rovo</Button>
+          {canImproveWithRovo(match) ? <Button onClick={onImprove} isDisabled={busy}>Improve with Rovo</Button> : null}
           <Button onClick={onSkip} isDisabled={busy}>Skip</Button>
           <Button onClick={onNotRelated} isDisabled={busy}>Not related</Button>
           <Button appearance="primary" onClick={onSend} isDisabled={!canSend(draft, busy)}>Send and next</Button>

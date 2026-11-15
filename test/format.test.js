@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { canSend, changeText, draftBoxKey, draftParagraphs, sentLabel, sharedWords } from '../src/frontend/components/format.js';
+import { canImproveWithRovo, canSend, changeText, draftBoxKey, draftParagraphs, improvePrompt, rovoOpenPayload, sentLabel, sharedWords } from '../src/frontend/components/format.js';
 
 describe('changeText (reply box onChange)', () => {
   test('reads the text from an event or a plain string', () => {
@@ -98,5 +98,25 @@ describe('sentLabel (viewer time zone)', () => {
   test('missing or bad dates give no label', () => {
     expect(sentLabel(null)).toBeNull();
     expect(sentLabel('not a date')).toBeNull();
+  });
+});
+
+describe('Improve with Rovo', () => {
+  test('shown for waiting and drafted, hidden for sent, skipped and not related', () => {
+    expect(canImproveWithRovo({ status: 'waiting' })).toBe(true);
+    expect(canImproveWithRovo({ status: 'drafted' })).toBe(true);
+    for (const status of ['sent', 'skipped', 'not_related', undefined]) expect(canImproveWithRovo({ status })).toBe(false);
+    expect(canImproveWithRovo(null)).toBe(false);
+  });
+
+  test('prompt uses the real request key', () => {
+    expect(improvePrompt('HELP-5')).toBe('Improve the reply for HELP-5');
+    expect(improvePrompt('HELP-12')).toBe('Improve the reply for HELP-12');
+  });
+
+  test('opens our Loop Closer agent (manifest key and name) with that prompt', () => {
+    expect(rovoOpenPayload({ requestKey: 'HELP-5', status: 'drafted' })).toEqual({
+      type: 'forge', agentName: 'Loop Closer', agentKey: 'loop-closer-agent', prompt: 'Improve the reply for HELP-5',
+    });
   });
 });

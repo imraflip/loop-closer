@@ -62,3 +62,16 @@ export function draftParagraphs(text) {
 }
 
 export const SOURCE_LABEL = { template: 'Template', rovo: 'Rovo', edited: 'Edited' };
+
+// "Improve with Rovo": only for replies not sent yet (waiting or drafted); hidden for sent, skipped, not related.
+export const canImproveWithRovo = (match) => match?.status === 'waiting' || match?.status === 'drafted';
+
+export const improvePrompt = (requestKey) => `Improve the reply for ${requestKey}`;
+
+// Payload for rovo.open() from @forge/bridge: our own agent (manifest rovo:agent key and name).
+export const rovoOpenPayload = (match) => ({
+  type: 'forge',
+  agentName: 'Loop Closer',
+  agentKey: 'loop-closer-agent',
+  prompt: improvePrompt(match.requestKey),
+});

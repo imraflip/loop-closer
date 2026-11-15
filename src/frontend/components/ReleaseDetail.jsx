@@ -2,14 +2,14 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Box, Button, EmptyState, Heading, Inline, LoadingButton, ProgressBar, SectionMessage, Spinner, Stack, Tab, TabList, TabPanel, Tabs, Text,
 } from '@forge/react';
-import { invoke, showFlag } from '@forge/bridge';
+import { invoke, rovo, showFlag } from '@forge/bridge';
 import { firstWord as firstName } from '../../lib/drafts';
 import MatchRow from './MatchRow';
 import MatchPanel from './MatchPanel';
 import RefreshButton from './RefreshButton';
 import SendConfirmModal from './SendConfirmModal';
 import { leftColumnStyle, panelStyle, rightColumnStyle } from './styles';
-import { plural } from './format';
+import { improvePrompt, plural, rovoOpenPayload } from './format';
 
 const TABS = [
   { key: 'waiting', label: 'Waiting', empty: 'Everyone in this release has been told.' },
@@ -174,6 +174,23 @@ const ReleaseDetail = ({ versionId, onBack }) => {
     }
   };
 
+  // "Improve with Rovo": save any unsaved typing (Rovo reads the saved draft), then open Rovo chat with
+  // the Loop Closer agent and "Improve the reply for KEY". If Rovo cannot open, say what to type instead.
+  const improve = async (m) => {
+    setActionError(null);
+    const hadEdit = isEdited(m);
+    setBusy(true);
+    const saved = await saveEdit(m);
+    setBusy(false);
+    if (!saved) return;
+    if (hadEdit) await load(); // show the saved text, not the old draft
+    try {
+      await rovo.open(rovoOpenPayload(m));
+    } catch (err) {
+      setActionError(`Could not open Rovo chat (${err.message || 'unknown error'}). Open Rovo chat, pick Loop Closer, and ask: "${improvePrompt(m.requestKey)}"`);
+    }
+  };
+
   // "Send and next": save the edit, then ask to confirm. Nothing is sent here.
   const askToSend = async (m) => {
     setActionError(null);
@@ -228,6 +245,7 @@ const ReleaseDetail = ({ versionId, onBack }) => {
             boxRevision={boxRevision}
             onDraftChange={(text) => setEdits((e) => ({ ...e, [selected.requestKey]: text }))}
             onUseTemplate={() => useTemplate(selected)}
+            onImprove={() => improve(selected)}
             onSkip={() => setStatus(selected, 'skipped')}
             onNotRelated={() => setStatus(selected, 'not_related')}
             onSend={() => askToSend(selected)}
